@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>Чат 💬</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #2f3136;
+      color: white;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+    #auth, #chat {
+      background: #36393f;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.3);
+      width: 420px;
+      display: none;
+      flex-direction: column;
+    }
+    #auth.active, #chat.active { display: flex; }
+    input {
+      margin: 5px 0;
+      padding: 10px;
+      border: none;
+      border-radius: 6px;
+      width: 100%;
+    }
+    button {
+      margin-top: 10px;
+      padding: 10px;
+      background: #5865f2;
+      border: none;
+      border-radius: 6px;
+      color: white;
+      cursor: pointer;
+    }
+    button:hover { background: #4752c4; }
+    ul { list-style: none; padding: 0; margin: 0; flex-grow: 1; overflow-y: auto; max-height: 300px; }
+    li {
+      margin: 8px 0;
+      padding: 10px;
+      border-radius: 10px;
+      background: #40444b;
+      width: fit-content;
+      max-width: 70%;
+    }
+    .my-message { background: #7289da; margin-left: auto; }
+    .message-username { font-weight: bold; margin-bottom: 4px; }
+    .message-time { font-size: 10px; text-align: right; color: gray; }
+
+    #emojiPicker { margin-top: 10px; display: flex; gap: 6px; }
+    #emojiPicker button { cursor: pointer; padding: 6px 10px; font-size: 18px; }
+    #imageInput { margin-top: 10px; }
+    #clearChat { background: #f04747; }
+  </style>
+</head>
+<body>
+
+  <!-- Авторизация -->
+  <div id="auth" class="active">
+    <h2>Вход или регистрация</h2>
+    <input id="username" placeholder="Имя пользователя" />
+    <input id="password" type="password" placeholder="Пароль" />
+    <button id="login">Войти</button>
+    <button id="register">Зарегистрироваться</button>
+    <p id="authMsg"></p>
+  </div>
+
+  <!-- Чат -->
+  <div id="chat">
+    <h2 id="welcome"></h2>
+    <ul id="messages"></ul>
+    <input id="input" placeholder="Введите сообщение..." />
+    <button id="send">Отправить</button>
+    <input type="file" id="imageInput" accept="image/*" />
+    <div id="emojiPicker">
+      <button class="emoji">😀</button>
+      <button class="emoji">😂</button>
+      <button class="emoji">😍</button>
+      <button class="emoji">😎</button>
+      <button class="emoji">👍</button>
+    </div>
+    <button id="clearChat">🗑 Очистить чат</button>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+
+    const authDiv = document.getElementById('auth');
+    const chatDiv = document.getElementById('chat');
+    const usernameInput = document.getElementById('username');
+    const passwordInput = document.getElementById('password');
+    const authMsg = document.getElementById('authMsg');
+    const welcome = document.getElementById('welcome');
+    const input = document.getElementById('input');
+    const send = document.getElementById('send');
+    const messages = document.getElementById('messages');
+    const imageInput = document.getElementById("imageInput");
+    const emojiButtons = document.querySelectorAll(".emoji");
+    const clearChatBtn = document.getElementById("clearChat");
+
+    let username = null;
+    let admin = false;
+
+    // Авторизация
+    document.getElementById('register').onclick = () => {
+      socket.emit('register', { username: usernameInput.value.trim(), password: passwordInput.value.trim() });
+    };
+    document.getElementById('login').onclick = () => {
+      socket.emit('login', { username: usernameInput.value.trim(), password: passwordInput.value.trim() });
+    };
+    socket.on('registerSuccess', msg => authMsg.textContent = msg);
+    socket.on('registerError', msg => authMsg.textContent = msg);
+    socket.on('loginError', msg => authMsg.textContent = msg);
+    socket.on('loginSuccess', (data) => {
+      username = data.username;
+      admin = data.admin;
+      authDiv.classList.remove('active');
+      chatDiv.classList.add('active');
+      welcome.textContent = `Привет, ${username}!`;
+      data.messages.forEach(addMessage);
+    });
+
+    // Отправка текста
+    send.onclick = () => {
+      const text = input.value.trim();
+      if (text) {
+        socket.emit('chat message', { username, text });
+        input.value = '';
+      }
+    };
+
+    // Добавление сообщений
+    function addMessage(msg) {
+      const li = document.createElement('li');
+      if(msg.username === username) li.classList.add('my-message');
+
+      if(msg.text) {
+        li.innerHTML = `<div class="message-username">${msg.username}</div><div>${msg.text}</div><div class="message-time">${msg.time}</div>`;
+      } else if(msg.data) {
+        li.innerHTML = `<div class="message-username">${msg.username}</div><img src="${msg.data}" style="max-width:200px; border-radius:8px; margin-top:4px;"><div class="message-time">${msg.time}</div>`;
+      }
+
+      messages.appendChild(li);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    socket.on('chat message', addMessage);
+    socket.on('chat image', addMessage);
+
+    // Эмоджи
+    emojiButtons.forEach(btn => {
+      btn.onclick = () => {
+        const emoji = btn.textContent;
+        socket.emit("chat message", { username, text: emoji });
+      };
+    });
+
+    // Отправка изображения
+    imageInput.onchange = () => {
+      const file = imageInput.files[0];
+      if(!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        socket.emit("chat image", { username, data: reader.result });
+      };
+      reader.readAsDataURL(file);
+      imageInput.value = "";
+    };
+
+    // Очистка чата
+    clearChatBtn.onclick = () => {
+      socket.emit("clear-messages");
+    };
+    socket.on("chat-cleared", () => {
+      messages.innerHTML = "";
+    });
+  </script>
+</body>
+</html>
