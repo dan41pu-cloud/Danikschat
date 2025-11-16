@@ -5,69 +5,62 @@
   <meta charset="UTF-8" />
   <title>Чат 💬</title>
   <style>
-   body {
-    font-family: sans-serif;
-    background: #2f3136;
-    color: white;
-    margin: 0;
-    padding: 20px;
-}
+    /* === Основные стили страницы === */
+    body {
+      font-family: sans-serif;
+      background: #2f3136;
+      color: white;
+      margin: 0;
+      padding: 20px;
+    }
 
-#auth, #chat {
-    background: #36393f;
-    padding: 20px;
-    border-radius: 12px;
-    box-shadow: 0 0 10px rgba(0,0,0,0.3);
+    /* === Блоки авторизации и чата === */
+    #auth, #chat {
+      background: #36393f;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.3);
 
-    width: 90%;        /* адаптивная ширина для мобильного */
-    max-width: 420px;  /* максимум для ПК */
-    
-    display: none;
-    flex-direction: column;
-    margin: 20px auto; /* горизонтальное центрирование, сверху отступ */
-}
+      width: 90%;        /* адаптивная ширина для мобильного */
+      max-width: 420px;  /* максимум для ПК */
 
-/* форма авторизации активна по умолчанию */
-#auth.active, #chat.active {
-    display: flex;
-}
+      display: none;
+      flex-direction: column;
+      margin: 20px auto; /* горизонтальное центрирование */
+    }
 
-input, button {
-    margin: 5px 0;
-    padding: 10px;
-    border: none;
-    border-radius: 6px;
-    width: 100%;
-}
+    /* показываем активный блок */
+    #auth.active, #chat.active {
+      display: flex;
+    }
 
-ul {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    flex-grow: 1;
-    overflow-y: auto;
-    max-height: 300px;
-}
-
-    #auth.active, #chat.active { display: flex; }
-    input {
+    input, button {
       margin: 5px 0;
       padding: 10px;
       border: none;
       border-radius: 6px;
       width: 100%;
     }
+
     button {
-      margin-top: 10px;
-      padding: 10px;
       background: #5865f2;
-      border: none;
-      border-radius: 6px;
       color: white;
       cursor: pointer;
     }
-    button:hover { background: #4752c4; }
-    ul { list-style: none; padding: 0; margin: 0; flex-grow: 1; overflow-y: auto; max-height: 300px; }
+
+    button:hover {
+      background: #4752c4;
+    }
+
+    ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      flex-grow: 1;
+      overflow-y: auto;
+      max-height: 300px;
+    }
+
     li {
       margin: 8px 0;
       padding: 10px;
@@ -76,6 +69,7 @@ ul {
       width: fit-content;
       max-width: 70%;
     }
+
     .my-message { background: #7289da; margin-left: auto; }
     .message-username { font-weight: bold; margin-bottom: 4px; }
     .message-time { font-size: 10px; text-align: right; color: gray; }
@@ -211,9 +205,3 @@ ul {
   </script>
 </body>
 </html>
-
-
-
-
-
-
