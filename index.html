@@ -16,16 +16,20 @@
       margin: 0;
       overflow-x: hidden;   /* запрещаем горизонтальную прокрутку */
       max-width: 100%;      /* ограничиваем ширину по экрану */
+      padding:20px;
     }
     #auth, #chat {
       background: #36393f;
-      padding: 20px;
-      border-radius: 12px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.3);
-      width: 90%;
-      max-width: 420px;
-      display: none;
-      flex-direction: column;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 0 10px rgba(0,0,0,0.3);
+
+  width: 90%;       /* адаптивная ширина */
+  max-width: 420px; /* максимум для ПК */
+
+  display: none;
+  flex-direction: column;
+  margin: 0 auto;   /* центрируем блок горизонтально */
     }
     #auth.active, #chat.active { display: flex; }
     input {
@@ -189,6 +193,7 @@
   </script>
 </body>
 </html>
+
 
 
 
