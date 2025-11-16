@@ -5,11 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Danikschat</title>
   <style>
-    /* === Основные стили страницы === */
-    * {
-      box-sizing: border-box;
-    }
-
+    * { box-sizing: border-box; }
     body {
       font-family: sans-serif;
       background: #2f3136;
@@ -18,24 +14,18 @@
       padding: 10px;
       overflow-y: auto;
     }
-
-    /* === Блоки авторизации и чата === */
     #auth, #chat {
       background: #36393f;
       padding: 20px;
       border-radius: 12px;
       box-shadow: 0 0 10px rgba(0,0,0,0.3);
-
-      width: 95%;        /* адаптивная ширина для мобильного */
-      max-width: 420px;  /* максимум для ПК */
+      width: 95%;
+      max-width: 420px;
       display: none;
       flex-direction: column;
-      margin: 10px auto; /* центрирование по горизонтали и небольшой отступ сверху */
+      margin: 10px auto;
     }
-
-    /* показываем активный блок */
     #auth.active, #chat.active { display: flex; }
-
     input, button {
       margin: 5px 0;
       padding: 12px;
@@ -44,18 +34,8 @@
       width: 100%;
       font-size: 16px;
     }
-
-    button {
-      background: #5865f2;
-      color: white;
-      cursor: pointer;
-    }
-
-    button:hover {
-      background: #4752c4;
-    }
-
-    /* Чат */
+    button { background: #5865f2; color: white; cursor: pointer; }
+    button:hover { background: #4752c4; }
     ul {
       list-style: none;
       padding: 0;
@@ -65,7 +45,6 @@
       max-height: 300px;
       word-wrap: break-word;
     }
-
     li {
       margin: 8px 0;
       padding: 10px;
@@ -75,37 +54,17 @@
       max-width: 70%;
       word-break: break-word;
     }
-
     .my-message { background: #7289da; margin-left: auto; }
     .message-username { font-weight: bold; margin-bottom: 4px; }
     .message-time { font-size: 10px; text-align: right; color: gray; }
-
-    /* Эмоджи и кнопки */
-    #emojiPicker { 
-      margin-top: 10px; 
-      display: flex; 
-      flex-wrap: wrap; 
-      gap: 6px; 
-    }
-    #emojiPicker button { 
-      cursor: pointer; 
-      padding: 6px 10px; 
-      font-size: 18px; 
-      flex: 1 1 20%; /* чтобы кнопки занимали адаптивно место на экране */
-    }
-
+    #emojiPicker { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
+    #emojiPicker button { cursor: pointer; padding: 6px 10px; font-size: 18px; flex: 1 1 20%; }
     #imageInput { margin-top: 10px; }
     #clearChat { background: #f04747; }
 
-    /* Подстраиваем размеры под маленькие экраны */
     @media (max-width: 400px) {
-      #auth, #chat {
-        padding: 15px;
-      }
-      input, button {
-        font-size: 14px;
-        padding: 10px;
-      }
+      #auth, #chat { padding: 15px; }
+      input, button { font-size: 14px; padding: 10px; }
     }
   </style>
 </head>
@@ -191,13 +150,11 @@
     function addMessage(msg) {
       const li = document.createElement('li');
       if(msg.username === username) li.classList.add('my-message');
-
       if(msg.text) {
         li.innerHTML = `<div class="message-username">${msg.username}</div><div>${msg.text}</div><div class="message-time">${msg.time}</div>`;
       } else if(msg.data) {
         li.innerHTML = `<div class="message-username">${msg.username}</div><img src="${msg.data}" style="max-width:200px; border-radius:8px; margin-top:4px;"><div class="message-time">${msg.time}</div>`;
       }
-
       messages.appendChild(li);
       messages.scrollTop = messages.scrollHeight;
     }
