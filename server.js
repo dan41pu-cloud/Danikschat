@@ -10,13 +10,14 @@ const io = new Server(server, {
   cors: { origin: "*", methods: ["GET","POST"] }
 });
 
-// === Отдаём папку public ===
+// отдаём папку public
 app.use(express.static(path.join(__dirname, "public")));
 
-// === Маршрут по умолчанию для /
+// если заходят на "/", отдаём index.html
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
+
 
 // === Файлы хранения ===
 const messagesFile = path.join(__dirname, "messages.json");
@@ -113,3 +114,4 @@ io.on("connection", (socket) => {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`🚀 Сервер запущен: http://localhost:${PORT}`));
+
