@@ -42,6 +42,7 @@
       color: white;
       cursor: pointer;
     }
+
     button:hover {
       background: #4752c4;
     }
@@ -70,8 +71,6 @@
 
     #emojiPicker { margin-top: 10px; display: flex; gap: 6px; }
     #emojiPicker button { cursor: pointer; padding: 6px 10px; font-size: 18px; }
-    #imageInput { margin-top: 10px; }
-    #clearChat { background: #f04747; }
   </style>
 </head>
 <body>
@@ -92,6 +91,7 @@
     <ul id="messages"></ul>
     <input id="input" placeholder="Введите сообщение..." />
     <button id="send">Отправить</button>
+
     <input type="file" id="imageInput" accept="image/*" />
 
     <div id="emojiPicker">
@@ -102,12 +102,23 @@
       <button class="emoji">👍</button>
     </div>
 
-    <!-- Новая кнопка видеочата -->
-    <button id="videoCallBtn">Видеозвонок</button>
+    <!-- ВИДЕОЧАТ -->
+    <button id="videoCallBtn" style="background:#3ba55d;margin-top:10px;">
+      Видеозвонок
+    </button>
+
+    <div id="videoRoom" style="display:none;margin-top:20px;">
+      <h2 id="videoStatus">Ожидание второго пользователя...</h2>
+
+      <video id="localVideo" autoplay playsinline muted style="width:100%;border-radius:10px;"></video>
+      <video id="remoteVideo" autoplay playsinline style="width:100%;border-radius:10px;margin-top:10px;"></video>
+
+      <button id="leaveVideo" style="background:#f04747;margin-top:10px;">Выйти</button>
+    </div>
 
   </div>
 
-  <script src="/socket.io/socket.io.js"></script>
+  <script src="https://danikschat-dvtc.onrender.com/socket.io/socket.io.js"></script>
   <script>
     const socket = io();
 
@@ -124,6 +135,7 @@
     const emojiButtons = document.querySelectorAll(".emoji");
 
     let username = null;
+    let admin = false;
 
     // Авторизация
     document.getElementById('register').onclick = () => {
@@ -135,12 +147,15 @@
     socket.on('registerSuccess', msg => authMsg.textContent = msg);
     socket.on('registerError', msg => authMsg.textContent = msg);
     socket.on('loginError', msg => authMsg.textContent = msg);
-
     socket.on('loginSuccess', (data) => {
       username = data.username;
+      admin = data.admin;
+
       authDiv.classList.remove('active');
       chatDiv.classList.add('active');
+
       welcome.textContent = `Привет, ${username}!`;
+
       data.messages.forEach(addMessage);
     });
 
@@ -161,7 +176,7 @@
       if(msg.text) {
         li.innerHTML = `<div class="message-username">${msg.username}</div><div>${msg.text}</div><div class="message-time">${msg.time}</div>`;
       } else if(msg.data) {
-        li.innerHTML = `<div class="message-username">${msg.username}</div><img src="${msg.data}" style="max-width:200px; border-radius:8px; margin-top:4px;"><div class="message-time">${msg.time}</div>`;
+        li.innerHTML = `<div class="message-username">${msg.username}</div><img src="${msg.data}" style="max-width:200px;border-radius:8px;margin-top:4px;"><div class="message-time">${msg.time}</div>`;
       }
 
       messages.appendChild(li);
@@ -174,8 +189,7 @@
     // Эмоджи
     emojiButtons.forEach(btn => {
       btn.onclick = () => {
-        const emoji = btn.textContent;
-        socket.emit("chat message", { username, text: emoji });
+        socket.emit("chat message", { username, text: btn.textContent });
       };
     });
 
@@ -184,17 +198,83 @@
       const file = imageInput.files[0];
       if(!file) return;
       const reader = new FileReader();
-      reader.onload = () => {
-        socket.emit("chat image", { username, data: reader.result });
-      };
+      reader.onload = () => socket.emit("chat image", { username, data: reader.result });
       reader.readAsDataURL(file);
       imageInput.value = "";
     };
 
-    // Переход в видеочат
-    document.getElementById("videoCallBtn").onclick = () => {
-      window.location.href = "videochat.html";
+    // ---------------------- ВИДЕОЧАТ ----------------------
+    const videoBtn = document.getElementById("videoCallBtn");
+    const videoRoom = document.getElementById("videoRoom");
+    const videoStatus = document.getElementById("videoStatus");
+    const localVideo = document.getElementById("localVideo");
+    const remoteVideo = document.getElementById("remoteVideo");
+    const leaveVideo = document.getElementById("leaveVideo");
+
+    let localStream;
+    let peer;
+
+    videoBtn.onclick = () => {
+      videoRoom.style.display = "block";
+      socket.emit("joinVideo");
     };
+
+    leaveVideo.onclick = () => {
+      socket.emit("leaveVideo");
+      if (peer) peer.close();
+      peer = null;
+      if (localStream) localStream.getTracks().forEach(t => t.stop());
+      videoRoom.style.display = "none";
+    };
+
+    socket.on("videoReady", async () => {
+      videoStatus.textContent = "Пользователь найден! Соединяюсь...";
+
+      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      localVideo.srcObject = localStream;
+
+      peer = new RTCPeerConnection();
+      localStream.getTracks().forEach(t => peer.addTrack(t, localStream));
+
+      peer.ontrack = event => remoteVideo.srcObject = event.streams[0];
+
+      peer.onicecandidate = e => e.candidate && socket.emit("ice", e.candidate);
+
+      const offer = await peer.createOffer();
+      await peer.setLocalDescription(offer);
+
+      socket.emit("offer", offer);
+    });
+
+    socket.on("offer", async offer => {
+      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      localVideo.srcObject = localStream;
+
+      peer = new RTCPeerConnection();
+      localStream.getTracks().forEach(t => peer.addTrack(t, localStream));
+
+      peer.ontrack = event => remoteVideo.srcObject = event.streams[0];
+      peer.onicecandidate = e => e.candidate && socket.emit("ice", e.candidate);
+
+      await peer.setRemoteDescription(offer);
+      const answer = await peer.createAnswer();
+      await peer.setLocalDescription(answer);
+
+      socket.emit("answer", answer);
+    });
+
+    socket.on("answer", async answer => {
+      await peer.setRemoteDescription(answer);
+    });
+
+    socket.on("ice", async cand => {
+      peer && await peer.addIceCandidate(cand);
+    });
+
+    socket.on("videoLeft", () => {
+      videoStatus.textContent = "Второй пользователь вышел. Ожидание...";
+      remoteVideo.srcObject = null;
+    });
   </script>
 </body>
 </html>
