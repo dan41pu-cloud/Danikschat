@@ -8,7 +8,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "*",          // разрешаем любые источники, включая WebView
+    origin: "*",
     methods: ["GET", "POST"]
   }
 });
@@ -31,7 +31,7 @@ function saveData(file, data) {
 
 function logSecurity(message) {
   const time = new Date().toISOString();
-  fs.appendFile(securityLogFile, `[${time}] ${message}\n`, err => { if(err) console.error(err); });
+  fs.appendFile(securityLogFile, `[${time}] ${message}\n`, err => {});
 }
 
 let messages = loadData(messagesFile);
@@ -39,38 +39,36 @@ let users = loadData(usersFile);
 let activeUsers = new Set();
 
 io.on("connection", (socket) => {
-  console.log("🔗 Новый пользователь подключился");
+  console.log("🔗 Пользователь подключился");
 
-  // Регистрация
   socket.on("register", ({ username, password }) => {
     if(!username || !password) return socket.emit("registerError", "Введите имя и пароль");
     if(users.find(u => u.username.toLowerCase() === username.toLowerCase()))
       return socket.emit("registerError", "Имя уже занято");
+
     const isFirstUser = users.length === 0;
     users.push({ username, password, admin: isFirstUser });
     saveData(usersFile, users);
-    socket.emit("registerSuccess","✅ Регистрация успешна! Теперь войдите.");
+    socket.emit("registerSuccess","Регистрация успешна!");
   });
 
-  // Вход
   socket.on("login", ({ username, password }) => {
     const user = users.find(u => u.username === username && u.password === password);
     if(!user) return socket.emit("loginError","Неверное имя или пароль");
+
     if(activeUsers.has(username)) {
       socket.emit("loginError","Этот пользователь уже онлайн!");
-      console.log(`⚠️ Попытка входа: ${username} — аккаунт уже используется!`);
-      logSecurity(`Попытка входа: ${username} — аккаунт уже используется`);
+      logSecurity(`Двойной вход: ${username}`);
       return;
     }
+
     socket.username = username;
-    socket.admin = !!user.admin;
+    socket.admin = user.admin;
     activeUsers.add(username);
+
     socket.emit("loginSuccess",{ username, admin: user.admin, messages });
-    console.log(`🔐 ${username} вошёл`);
-    logSecurity(`${username} вошёл на сервер`);
   });
 
-  // Сообщения
   socket.on("chat message", (msg) => {
     const time = new Date().toLocaleTimeString();
     const message = { ...msg, time };
@@ -79,7 +77,6 @@ io.on("connection", (socket) => {
     io.emit("chat message", message);
   });
 
-  // Изображения
   socket.on("chat image", (msg) => {
     const time = new Date().toLocaleTimeString();
     const message = { ...msg, time };
@@ -88,23 +85,33 @@ io.on("connection", (socket) => {
     io.emit("chat image", message);
   });
 
-  // Очистка чата
+  // Очистка чата (только админ)
   socket.on("clear-messages", () => {
     if(!socket.admin) return;
     messages = [];
     saveData(messagesFile, messages);
     io.emit("chat-cleared");
-    console.log("🧹 Чат очищен администратором");
   });
 
-  // Отключение
+  /* === WebRTC сигналинг === */
+  socket.on("webrtc-offer", (offer) => {
+    socket.broadcast.emit("webrtc-offer", offer);
+  });
+
+  socket.on("webrtc-answer", (answer) => {
+    socket.broadcast.emit("webrtc-answer", answer);
+  });
+
+  socket.on("webrtc-candidate", (candidate) => {
+    socket.broadcast.emit("webrtc-candidate", candidate);
+  });
+
   socket.on("disconnect", () => {
     if(socket.username) {
       activeUsers.delete(socket.username);
-      console.log(`❌ ${socket.username} вышел`);
-      logSecurity(`${socket.username} вышел с сервера`);
+      logSecurity(`${socket.username} отключился`);
     }
   });
 });
 
-server.listen(3000, () => console.log("🚀 Сервер запущен: http://localhost:3000")); 
+server.listen(3000, () => console.log("🚀 Сервер запущен http://localhost:3000"));
