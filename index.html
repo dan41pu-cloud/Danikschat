@@ -4,8 +4,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta charset="UTF-8" />
   <title>Danikschat</title>
+
   <style>
-    /* === Основные стили страницы === */
     body {
       font-family: sans-serif;
       background: #2f3136;
@@ -14,70 +14,40 @@
       padding: 20px;
     }
 
-    /* === Блоки авторизации и чата === */
     #auth, #chat {
       background: #36393f;
       padding: 20px;
       border-radius: 12px;
       box-shadow: 0 0 10px rgba(0,0,0,0.3);
-
-      width: 90%;        /* адаптивная ширина для мобильного */
-      max-width: 420px;  /* максимум для ПК */
-
+      width: 90%;
+      max-width: 420px;
       display: none;
       flex-direction: column;
-      margin: 20px auto; /* горизонтальное центрирование */
+      margin: 20px auto;
     }
 
-    /* показываем активный блок */
-    #auth.active, #chat.active {
-      display: flex;
-    }
+    #auth.active, #chat.active { display: flex; }
 
     input, button {
       margin: 5px 0;
       padding: 10px;
-      border: none;
       border-radius: 6px;
+      border: none;
       width: 100%;
     }
 
-    button {
-      background: #5865f2;
-      color: white;
-      cursor: pointer;
-    }
+    button { background: #5865f2; color: white; cursor: pointer; }
+    button:hover { background: #4752c4; }
 
-    button:hover {
-      background: #4752c4;
-    }
-
-    ul {
-      list-style: none;
-      padding: 0;
-      margin: 0;
-      flex-grow: 1;
-      overflow-y: auto;
-      max-height: 300px;
-    }
-
-    li {
-      margin: 8px 0;
-      padding: 10px;
-      border-radius: 10px;
-      background: #40444b;
-      width: fit-content;
-      max-width: 70%;
-    }
-
+    ul { list-style: none; padding: 0; margin: 0; height: 250px; overflow-y: auto; }
+    li { background: #40444b; padding: 10px; margin: 8px 0; border-radius: 10px; max-width: 70%; }
     .my-message { background: #7289da; margin-left: auto; }
-    .message-username { font-weight: bold; margin-bottom: 4px; }
-    .message-time { font-size: 10px; text-align: right; color: gray; }
 
-    #emojiPicker { margin-top: 10px; display: flex; gap: 6px; }
-    #emojiPicker button { cursor: pointer; padding: 6px 10px; font-size: 18px; }
-    #imageInput { margin-top: 10px; }
-    #clearChat { background: #f04747; }
+    .message-username { font-weight: bold; }
+    .message-time { font-size: 10px; color: #bbb; text-align: right; }
+
+    #videoCall { margin-top: 20px; display: none; text-align: center; }
+    video { width: 45%; border-radius: 10px; margin: 5px; }
   </style>
 </head>
 <body>
@@ -95,10 +65,14 @@
   <!-- Чат -->
   <div id="chat">
     <h2 id="welcome"></h2>
+
     <ul id="messages"></ul>
+
     <input id="input" placeholder="Введите сообщение..." />
     <button id="send">Отправить</button>
+
     <input type="file" id="imageInput" accept="image/*" />
+
     <div id="emojiPicker">
       <button class="emoji">😀</button>
       <button class="emoji">😂</button>
@@ -106,87 +80,118 @@
       <button class="emoji">😎</button>
       <button class="emoji">👍</button>
     </div>
-    
   </div>
+
+
+  <!-- ВИДЕОЗВОНОК -->
+  <div id="videoCall">
+    <h3>Видеозвонок</h3>
+    <video id="localVideo" autoplay playsinline muted></video>
+    <video id="remoteVideo" autoplay playsinline></video>
+    <br>
+    <button id="callBtn">📞 Позвонить</button>
+    <button id="hangupBtn">❌ Завершить</button>
+  </div>
+
 
   <script src="https://danikschat-dvtc.onrender.com/socket.io/socket.io.js"></script>
   <script>
     const socket = io();
 
-    const authDiv = document.getElementById('auth');
-    const chatDiv = document.getElementById('chat');
-    const usernameInput = document.getElementById('username');
-    const passwordInput = document.getElementById('password');
-    const authMsg = document.getElementById('authMsg');
-    const welcome = document.getElementById('welcome');
-    const input = document.getElementById('input');
-    const send = document.getElementById('send');
-    const messages = document.getElementById('messages');
+    const authDiv = document.getElementById("auth");
+    const chatDiv = document.getElementById("chat");
+    const usernameInput = document.getElementById("username");
+    const passwordInput = document.getElementById("password");
+    const authMsg = document.getElementById("authMsg");
+    const welcome = document.getElementById("welcome");
+    const messages = document.getElementById("messages");
+    const input = document.getElementById("input");
+    const send = document.getElementById("send");
     const imageInput = document.getElementById("imageInput");
     const emojiButtons = document.querySelectorAll(".emoji");
-    const clearChatBtn = document.getElementById("clearChat");
 
     let username = null;
     let admin = false;
 
-    // Авторизация
-    document.getElementById('register').onclick = () => {
-      socket.emit('register', { username: usernameInput.value.trim(), password: passwordInput.value.trim() });
+    // ===== РЕГИСТРАЦИЯ
+    document.getElementById("register").onclick = () => {
+      socket.emit("register", {
+        username: usernameInput.value.trim(),
+        password: passwordInput.value.trim()
+      });
     };
-    document.getElementById('login').onclick = () => {
-      socket.emit('login', { username: usernameInput.value.trim(), password: passwordInput.value.trim() });
+
+    // ===== ВХОД
+    document.getElementById("login").onclick = () => {
+      socket.emit("login", {
+        username: usernameInput.value.trim(),
+        password: passwordInput.value.trim()
+      });
     };
-    socket.on('registerSuccess', msg => authMsg.textContent = msg);
-    socket.on('registerError', msg => authMsg.textContent = msg);
-    socket.on('loginError', msg => authMsg.textContent = msg);
-    socket.on('loginSuccess', (data) => {
+
+    socket.on("registerSuccess", msg => authMsg.textContent = msg);
+    socket.on("registerError", msg => authMsg.textContent = msg);
+    socket.on("loginError", msg => authMsg.textContent = msg);
+
+    socket.on("loginSuccess", (data) => {
       username = data.username;
       admin = data.admin;
-      authDiv.classList.remove('active');
-      chatDiv.classList.add('active');
+
+      authDiv.classList.remove("active");
+      chatDiv.classList.add("active");
+
+      document.getElementById("videoCall").style.display = "block";
+
       welcome.textContent = `Привет, ${username}!`;
+
       data.messages.forEach(addMessage);
     });
 
-    // Отправка текста
+
+    // ===== ОТПРАВКА ТЕКСТА
     send.onclick = () => {
       const text = input.value.trim();
       if (text) {
-        socket.emit('chat message', { username, text });
-        input.value = '';
+        socket.emit("chat message", { username, text });
+        input.value = "";
       }
     };
 
-    // Добавление сообщений
     function addMessage(msg) {
-      const li = document.createElement('li');
-      if(msg.username === username) li.classList.add('my-message');
+      const li = document.createElement("li");
+      if (msg.username === username) li.classList.add("my-message");
 
-      if(msg.text) {
-        li.innerHTML = `<div class="message-username">${msg.username}</div><div>${msg.text}</div><div class="message-time">${msg.time}</div>`;
-      } else if(msg.data) {
-        li.innerHTML = `<div class="message-username">${msg.username}</div><img src="${msg.data}" style="max-width:200px; border-radius:8px; margin-top:4px;"><div class="message-time">${msg.time}</div>`;
+      if (msg.text) {
+        li.innerHTML =
+          `<div class="message-username">${msg.username}</div>
+           <div>${msg.text}</div>
+           <div class="message-time">${msg.time}</div>`;
+      } else if (msg.data) {
+        li.innerHTML =
+          `<div class="message-username">${msg.username}</div>
+           <img src="${msg.data}" style="max-width:200px; border-radius:8px;">
+           <div class="message-time">${msg.time}</div>`;
       }
 
       messages.appendChild(li);
       messages.scrollTop = messages.scrollHeight;
     }
 
-    socket.on('chat message', addMessage);
-    socket.on('chat image', addMessage);
+    socket.on("chat message", addMessage);
+    socket.on("chat image", addMessage);
 
-    // Эмоджи
+    // ===== ЭМОДЗИ
     emojiButtons.forEach(btn => {
       btn.onclick = () => {
-        const emoji = btn.textContent;
-        socket.emit("chat message", { username, text: emoji });
+        socket.emit("chat message", { username, text: btn.textContent });
       };
     });
 
-    // Отправка изображения
+    // ===== ИЗОБРАЖЕНИЯ
     imageInput.onchange = () => {
       const file = imageInput.files[0];
-      if(!file) return;
+      if (!file) return;
+
       const reader = new FileReader();
       reader.onload = () => {
         socket.emit("chat image", { username, data: reader.result });
@@ -195,15 +200,86 @@
       imageInput.value = "";
     };
 
-    // Очистка чата
-    clearChatBtn.onclick = () => {
-      socket.emit("clear-messages");
+
+    // ========================================
+    // ==========  WEBRTC — ВИДЕО  ============
+    // ========================================
+
+    let localVideo = document.getElementById("localVideo");
+    let remoteVideo = document.getElementById("remoteVideo");
+    let callBtn = document.getElementById("callBtn");
+    let hangupBtn = document.getElementById("hangupBtn");
+
+    let pc;
+    let localStream;
+
+    const rtcConfig = {
+      iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
     };
-    socket.on("chat-cleared", () => {
-      messages.innerHTML = "";
+
+    async function startLocalVideo() {
+      localStream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: true
+      });
+      localVideo.srcObject = localStream;
+    }
+    startLocalVideo();
+
+    callBtn.onclick = async () => {
+      pc = createPeerConnection();
+      localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+
+      socket.emit("offer", offer);
+    };
+
+    hangupBtn.onclick = () => {
+      if (pc) pc.close();
+      pc = null;
+    };
+
+    function createPeerConnection() {
+      const pc = new RTCPeerConnection(rtcConfig);
+
+      pc.onicecandidate = (event) => {
+        if (event.candidate) {
+          socket.emit("ice-candidate", event.candidate);
+        }
+      };
+
+      pc.ontrack = (event) => {
+        remoteVideo.srcObject = event.streams[0];
+      };
+
+      return pc;
+    }
+
+    socket.on("offer", async (offer) => {
+      if (!pc) {
+        pc = createPeerConnection();
+        localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+      }
+
+      await pc.setRemoteDescription(offer);
+
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+
+      socket.emit("answer", answer);
+    });
+
+    socket.on("answer", async (answer) => {
+      await pc.setRemoteDescription(answer);
+    });
+
+    socket.on("ice-candidate", async (candidate) => {
+      if (pc) {
+        await pc.addIceCandidate(candidate);
+      }
     });
   </script>
 </body>
 </html>
-
-
