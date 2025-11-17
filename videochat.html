@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Видеочат</title>
+  <style>
+    body { background:#2f3136; color:white; font-family:sans-serif; text-align:center; }
+    video { width: 45%; margin: 10px; background:#000; border-radius:10px; }
+    #startBtn {
+      margin-top:20px; padding:10px 20px; border:none;
+      background:#5865f2; color:white; border-radius:10px; cursor:pointer;
+    }
+  </style>
+</head>
+<body>
+
+<h2>Комната видеочата</h2>
+<p id="status">Нажмите кнопку ниже чтобы разрешить камеру и микрофон.</p>
+
+<button id="startBtn">Подключиться</button>
+
+<br>
+
+<video id="localVideo" autoplay playsinline muted></video>
+<video id="remoteVideo" autoplay playsinline></video>
+
+<script src="/socket.io/socket.io.js"></script>
+
+<script>
+  const socket = io();
+  let pc;
+
+  const statusEl = document.getElementById("status");
+  const startBtn = document.getElementById("startBtn");
+  const localVideo = document.getElementById("localVideo");
+  const remoteVideo = document.getElementById("remoteVideo");
+
+  startBtn.onclick = async () => {
+    startBtn.remove();
+    await start();
+    socket.emit("join-video-room");
+  };
+
+  async function start() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          facingMode: "user"
+        },
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        }
+      });
+
+      localVideo.srcObject = stream;
+
+      pc = new RTCPeerConnection();
+
+      stream.getTracks().forEach(track => pc.addTrack(track, stream));
+
+      pc.ontrack = event => {
+        remoteVideo.srcObject = event.streams[0];
+      };
+
+      pc.onicecandidate = event => {
+        if (event.candidate) socket.emit("ice", event.candidate);
+      };
+
+    } catch (err) {
+      statusEl.textContent = "Ошибка доступа к камере: " + err;
+    }
+  }
+
+  // Серверные события
+  socket.on("waiting", () => {
+    statusEl.textContent = "Ожидание второго пользователя...";
+  });
+
+  socket.on("ready", async () => {
+    statusEl.textContent = "Пользователь подключён. Идёт соединение...";
+
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+
+    socket.emit("offer", offer);
+  });
+
+  socket.on("offer", async (offer) => {
+    await pc.setRemoteDescription(new RTCSessionDescription(offer));
+
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+
+    socket.emit("answer", answer);
+  });
+
+  socket.on("answer", async (answer) => {
+    await pc.setRemoteDescription(new RTCSessionDescription(answer));
+  });
+
+  socket.on("ice", async (candidate) => {
+    await pc.addIceCandidate(new RTCIceCandidate(candidate));
+  });
+</script>
+
+</body>
+</html>
