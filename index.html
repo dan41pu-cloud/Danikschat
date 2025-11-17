@@ -104,7 +104,7 @@
     <button id="openVideoChat">Видеочат</button>
   </div>
 
-  <!-- ВИДЕОЧАТ — внизу -->
+  <!-- ВИДЕОЧАТ -->
   <div id="videoChat" style="
     margin-top: 20px;
     background:#36393f;
@@ -148,6 +148,7 @@
     document.getElementById('register').onclick = () => {
       socket.emit('register', { username: usernameInput.value.trim(), password: passwordInput.value.trim() });
     };
+
     document.getElementById('login').onclick = () => {
       socket.emit('login', { username: usernameInput.value.trim(), password: passwordInput.value.trim() });
     };
@@ -280,6 +281,17 @@
       if (peerConnection) peerConnection.close();
       remoteVideo.srcObject = null;
     };
+
+    /* === АВТОЗАПРОС КАМЕРЫ И МИКРО === */
+    window.addEventListener("load", async () => {
+      try {
+        await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        console.log("Разрешение на камеру и микрофон получено автоматически");
+      } catch (err) {
+        console.warn("Пользователь отклонил доступ:", err);
+      }
+    });
+
   </script>
 </body>
 </html>
