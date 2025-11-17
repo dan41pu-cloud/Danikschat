@@ -7,10 +7,7 @@ const path = require("path");
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: {
-    origin: "*",          // разрешаем любые источники, включая WebView
-    methods: ["GET", "POST"]
-  }
+  cors: { origin: "*", methods: ["GET", "POST"] }
 });
 
 app.use(express.static(__dirname));
@@ -38,6 +35,8 @@ let messages = loadData(messagesFile);
 let users = loadData(usersFile);
 let activeUsers = new Set();
 
+let videoRoom = []; // видеочат
+
 io.on("connection", (socket) => {
   console.log("🔗 Новый пользователь подключился");
 
@@ -46,6 +45,7 @@ io.on("connection", (socket) => {
     if(!username || !password) return socket.emit("registerError", "Введите имя и пароль");
     if(users.find(u => u.username.toLowerCase() === username.toLowerCase()))
       return socket.emit("registerError", "Имя уже занято");
+
     const isFirstUser = users.length === 0;
     users.push({ username, password, admin: isFirstUser });
     saveData(usersFile, users);
@@ -56,17 +56,18 @@ io.on("connection", (socket) => {
   socket.on("login", ({ username, password }) => {
     const user = users.find(u => u.username === username && u.password === password);
     if(!user) return socket.emit("loginError","Неверное имя или пароль");
+
     if(activeUsers.has(username)) {
       socket.emit("loginError","Этот пользователь уже онлайн!");
-      console.log(`⚠️ Попытка входа: ${username} — аккаунт уже используется!`);
       logSecurity(`Попытка входа: ${username} — аккаунт уже используется`);
       return;
     }
+
     socket.username = username;
     socket.admin = !!user.admin;
     activeUsers.add(username);
+
     socket.emit("loginSuccess",{ username, admin: user.admin, messages });
-    console.log(`🔐 ${username} вошёл`);
     logSecurity(`${username} вошёл на сервер`);
   });
 
@@ -88,23 +89,33 @@ io.on("connection", (socket) => {
     io.emit("chat image", message);
   });
 
-  // Очистка чата
-  socket.on("clear-messages", () => {
-    if(!socket.admin) return;
-    messages = [];
-    saveData(messagesFile, messages);
-    io.emit("chat-cleared");
-    console.log("🧹 Чат очищен администратором");
+  // ====== ВИДЕОЧАТ ======
+
+  socket.on("join-video-room", () => {
+    videoRoom.push(socket);
+
+    if (videoRoom.length === 1) {
+      socket.emit("waiting");
+    }
+    if (videoRoom.length === 2) {
+      videoRoom[0].emit("ready");
+      videoRoom[1].emit("ready");
+    }
+    if (videoRoom.length > 2) {
+      socket.emit("waiting");
+    }
   });
 
-  // Отключение
+  socket.on("offer", data => socket.broadcast.emit("offer", data));
+  socket.on("answer", data => socket.broadcast.emit("answer", data));
+  socket.on("ice", data => socket.broadcast.emit("ice", data));
+
+  // Выход
   socket.on("disconnect", () => {
-    if(socket.username) {
-      activeUsers.delete(socket.username);
-      console.log(`❌ ${socket.username} вышел`);
-      logSecurity(`${socket.username} вышел с сервера`);
-    }
+    activeUsers.delete(socket.username);
+    videoRoom = videoRoom.filter(s => s !== socket);
+    console.log(`❌ ${socket.username} вышел`);
   });
 });
 
-server.listen(3000, () => console.log("🚀 Сервер запущен: http://localhost:3000"));
+server.listen(3000, () => console.log("🚀 Сервер запущен")); 
