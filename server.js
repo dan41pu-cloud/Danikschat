@@ -13,7 +13,27 @@ const io = new Server(server, {
     methods: ["GET", "POST"]
   }
 });
+// ==== WebRTC Signaling ====
 
+io.on("connection", (socket) => {
+
+  socket.on("call-user", ({ to }) => {
+    io.emit("incoming-call", { from: socket.username });
+  });
+
+  socket.on("offer", (data) => {
+    socket.broadcast.emit("offer", data);
+  });
+
+  socket.on("answer", (data) => {
+    socket.broadcast.emit("answer", data);
+  });
+
+  socket.on("ice-candidate", (data) => {
+    socket.broadcast.emit("ice-candidate", data);
+  });
+
+});
 app.use(express.static(__dirname));
 
 const messagesFile = path.join(__dirname, "messages.json");
@@ -109,4 +129,5 @@ io.on("connection", (socket) => {
 });
 
 server.listen(3000, () => console.log("🚀 Сервер запущен: http://localhost:3000"));
+
 
