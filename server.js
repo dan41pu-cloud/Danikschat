@@ -7,7 +7,10 @@ const path = require("path");
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: { origin: "*", methods: ["GET","POST"] }
+  cors: {
+    origin: "*",          // разрешаем любые источники, включая WebView
+    methods: ["GET", "POST"]
+  }
 });
 
 app.use(express.static(__dirname));
@@ -16,110 +19,92 @@ const messagesFile = path.join(__dirname, "messages.json");
 const usersFile = path.join(__dirname, "users.json");
 const securityLogFile = path.join(__dirname, "security.log");
 
-function loadData(file, def = []) {
+function loadData(file, defaultValue = []) {
   if(fs.existsSync(file)) return JSON.parse(fs.readFileSync(file,"utf8"));
-  fs.writeFileSync(file, JSON.stringify(def,null,2));
-  return def;
+  fs.writeFileSync(file, JSON.stringify(defaultValue,null,2));
+  return defaultValue;
 }
 
 function saveData(file, data) {
-  fs.writeFileSync(file, JSON.stringify(data,null,2));
+  fs.writeFileSync(file, JSON.stringify(data,null,2), "utf8");
 }
 
 function logSecurity(message) {
-  fs.appendFile(securityLogFile, `[${new Date().toISOString()}] ${message}\n`, () => {});
+  const time = new Date().toISOString();
+  fs.appendFile(securityLogFile, `[${time}] ${message}\n`, err => { if(err) console.error(err); });
 }
 
 let messages = loadData(messagesFile);
 let users = loadData(usersFile);
 let activeUsers = new Set();
 
-// Видеокомната (только 2 пользователя)
-let videoRoomUsers = [];
-
 io.on("connection", (socket) => {
-  console.log("🔗 Новый пользователь");
+  console.log("🔗 Новый пользователь подключился");
 
-  // ------------------ РЕГИСТРАЦИЯ ------------------
+  // Регистрация
   socket.on("register", ({ username, password }) => {
-    if(!username || !password)
-      return socket.emit("registerError", "Введите имя и пароль");
-
-    if(users.some(u => u.username.toLowerCase() === username.toLowerCase()))
-      return socket.emit("registerError", "Имя занято");
-
-    const isFirst = users.length === 0;
-
-    users.push({ username, password, admin: isFirst });
+    if(!username || !password) return socket.emit("registerError", "Введите имя и пароль");
+    if(users.find(u => u.username.toLowerCase() === username.toLowerCase()))
+      return socket.emit("registerError", "Имя уже занято");
+    const isFirstUser = users.length === 0;
+    users.push({ username, password, admin: isFirstUser });
     saveData(usersFile, users);
-
-    socket.emit("registerSuccess", "Успешно! Теперь войдите.");
+    socket.emit("registerSuccess","✅ Регистрация успешна! Теперь войдите.");
   });
 
-  // ------------------ ВХОД ------------------
+  // Вход
   socket.on("login", ({ username, password }) => {
     const user = users.find(u => u.username === username && u.password === password);
-    if(!user) return socket.emit("loginError", "Неверные данные");
-
+    if(!user) return socket.emit("loginError","Неверное имя или пароль");
     if(activeUsers.has(username)) {
-      socket.emit("loginError", "Этот пользователь уже онлайн");
-      logSecurity(`Попытка входа ${username}: аккаунт уже активен`);
+      socket.emit("loginError","Этот пользователь уже онлайн!");
+      console.log(`⚠️ Попытка входа: ${username} — аккаунт уже используется!`);
+      logSecurity(`Попытка входа: ${username} — аккаунт уже используется`);
       return;
     }
-
     socket.username = username;
     socket.admin = !!user.admin;
     activeUsers.add(username);
-
-    socket.emit("loginSuccess", { username, admin: user.admin, messages });
-
-    logSecurity(`${username} вошёл`);
+    socket.emit("loginSuccess",{ username, admin: user.admin, messages });
+    console.log(`🔐 ${username} вошёл`);
+    logSecurity(`${username} вошёл на сервер`);
   });
 
-  // ------------------ СООБЩЕНИЯ ------------------
-  socket.on("chat message", msg => {
+  // Сообщения
+  socket.on("chat message", (msg) => {
     const time = new Date().toLocaleTimeString();
-    const m = { ...msg, time };
-    messages.push(m);
+    const message = { ...msg, time };
+    messages.push(message);
     saveData(messagesFile, messages);
-    io.emit("chat message", m);
+    io.emit("chat message", message);
   });
 
-  // ------------------ ИЗОБРАЖЕНИЯ ------------------
-  socket.on("chat image", msg => {
+  // Изображения
+  socket.on("chat image", (msg) => {
     const time = new Date().toLocaleTimeString();
-    const m = { ...msg, time };
-    messages.push(m);
+    const message = { ...msg, time };
+    messages.push(message);
     saveData(messagesFile, messages);
-    io.emit("chat image", m);
+    io.emit("chat image", message);
   });
 
-  // ------------------ ВИДЕОЧАТ ------------------
-  socket.on("joinVideo", () => {
-    videoRoomUsers.push(socket.id);
-
-    if (videoRoomUsers.length === 2) {
-      io.to(videoRoomUsers[0]).emit("videoReady");
-      io.to(videoRoomUsers[1]).emit("videoReady");
-    }
+  // Очистка чата
+  socket.on("clear-messages", () => {
+    if(!socket.admin) return;
+    messages = [];
+    saveData(messagesFile, messages);
+    io.emit("chat-cleared");
+    console.log("🧹 Чат очищен администратором");
   });
 
-  socket.on("leaveVideo", () => {
-    videoRoomUsers = videoRoomUsers.filter(id => id !== socket.id);
-    socket.broadcast.emit("videoLeft");
-  });
-
-  socket.on("offer", offer => socket.broadcast.emit("offer", offer));
-  socket.on("answer", ans => socket.broadcast.emit("answer", ans));
-  socket.on("ice", cand => socket.broadcast.emit("ice", cand));
-
-  // ------------------ ОТКЛЮЧЕНИЕ ------------------
+  // Отключение
   socket.on("disconnect", () => {
-    activeUsers.delete(socket.username);
-    videoRoomUsers = videoRoomUsers.filter(id => id !== socket.id);
-    socket.broadcast.emit("videoLeft");
-    logSecurity(`${socket.username} вышел`);
+    if(socket.username) {
+      activeUsers.delete(socket.username);
+      console.log(`❌ ${socket.username} вышел`);
+      logSecurity(`${socket.username} вышел с сервера`);
+    }
   });
 });
 
-server.listen(3000, () => console.log("🚀 Сервер запущен на 3000"));
+server.listen(3000, () => console.log("🚀 Сервер запущен: http://localhost:3000")); 
