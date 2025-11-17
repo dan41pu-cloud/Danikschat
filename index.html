@@ -5,7 +5,6 @@
   <meta charset="UTF-8" />
   <title>Danikschat</title>
   <style>
-    /* === Основные стили страницы === */
     body {
       font-family: sans-serif;
       background: #2f3136;
@@ -14,22 +13,18 @@
       padding: 20px;
     }
 
-    /* === Блоки авторизации и чата === */
     #auth, #chat {
       background: #36393f;
       padding: 20px;
       border-radius: 12px;
       box-shadow: 0 0 10px rgba(0,0,0,0.3);
-
-      width: 90%;        /* адаптивная ширина для мобильного */
-      max-width: 420px;  /* максимум для ПК */
-
+      width: 90%;
+      max-width: 420px;
       display: none;
       flex-direction: column;
-      margin: 20px auto; /* горизонтальное центрирование */
+      margin: 20px auto;
     }
 
-    /* показываем активный блок */
     #auth.active, #chat.active {
       display: flex;
     }
@@ -47,7 +42,6 @@
       color: white;
       cursor: pointer;
     }
-
     button:hover {
       background: #4752c4;
     }
@@ -99,6 +93,7 @@
     <input id="input" placeholder="Введите сообщение..." />
     <button id="send">Отправить</button>
     <input type="file" id="imageInput" accept="image/*" />
+
     <div id="emojiPicker">
       <button class="emoji">😀</button>
       <button class="emoji">😂</button>
@@ -106,10 +101,13 @@
       <button class="emoji">😎</button>
       <button class="emoji">👍</button>
     </div>
-    
+
+    <!-- Новая кнопка видеочата -->
+    <button id="videoCallBtn">Видеозвонок</button>
+
   </div>
 
-  <script src="https://danikschat-dvtc.onrender.com/socket.io/socket.io.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
   <script>
     const socket = io();
 
@@ -124,10 +122,8 @@
     const messages = document.getElementById('messages');
     const imageInput = document.getElementById("imageInput");
     const emojiButtons = document.querySelectorAll(".emoji");
-    const clearChatBtn = document.getElementById("clearChat");
 
     let username = null;
-    let admin = false;
 
     // Авторизация
     document.getElementById('register').onclick = () => {
@@ -139,9 +135,9 @@
     socket.on('registerSuccess', msg => authMsg.textContent = msg);
     socket.on('registerError', msg => authMsg.textContent = msg);
     socket.on('loginError', msg => authMsg.textContent = msg);
+
     socket.on('loginSuccess', (data) => {
       username = data.username;
-      admin = data.admin;
       authDiv.classList.remove('active');
       chatDiv.classList.add('active');
       welcome.textContent = `Привет, ${username}!`;
@@ -195,15 +191,10 @@
       imageInput.value = "";
     };
 
-    // Очистка чата
-    clearChatBtn.onclick = () => {
-      socket.emit("clear-messages");
+    // Переход в видеочат
+    document.getElementById("videoCallBtn").onclick = () => {
+      window.location.href = "videochat.html";
     };
-    socket.on("chat-cleared", () => {
-      messages.innerHTML = "";
-    });
   </script>
 </body>
 </html>
-
-
