@@ -1,4 +1,3 @@
-
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -53,7 +52,10 @@ function deleteOldMessages() {
   }
 }
 
+// запуск авто-удаления раз в 10 минут
 setInterval(deleteOldMessages, 10 * 60 * 1000);
+
+// очистка при старте сервера
 deleteOldMessages();
 /* =========================================== */
 
@@ -85,14 +87,14 @@ io.on("connection", (socket) => {
     socket.admin = user.admin;
     activeUsers.add(username);
 
-    deleteOldMessages(); 
+    deleteOldMessages(); // очищаем перед отправкой
 
     socket.emit("loginSuccess",{ username, admin: user.admin, messages });
   });
 
   socket.on("chat message", (msg) => {
     const time = new Date().toLocaleTimeString();
-    const message = { ...msg, time, timestamp: Date.now() };
+    const message = { ...msg, time, timestamp: Date.now() }; // <<< добавлено timestamp
     messages.push(message);
     saveData(messagesFile, messages);
     io.emit("chat message", message);
@@ -100,7 +102,7 @@ io.on("connection", (socket) => {
 
   socket.on("chat image", (msg) => {
     const time = new Date().toLocaleTimeString();
-    const message = { ...msg, time, timestamp: Date.now() };
+    const message = { ...msg, time, timestamp: Date.now() }; // <<< добавлено timestamp
     messages.push(message);
     saveData(messagesFile, messages);
     io.emit("chat image", message);
@@ -118,13 +120,6 @@ io.on("connection", (socket) => {
   socket.on("webrtc-offer", (offer) => {
     socket.broadcast.emit("webrtc-offer", offer);
   });
-  // Когда кто-то включает видеочат — сообщаем всем
-socket.on("user-start-video", () => {
-  if (socket.username) {
-    io.emit("video-user-joined", socket.username);
-  }
-});
-
 
   socket.on("webrtc-answer", (answer) => {
     socket.broadcast.emit("webrtc-answer", answer);
@@ -133,16 +128,6 @@ socket.on("user-start-video", () => {
   socket.on("webrtc-candidate", (candidate) => {
     socket.broadcast.emit("webrtc-candidate", candidate);
   });
-
-  /* === 🔔 УВЕДОМЛЕНИЕ О ВХОДЕ В ВИДЕОЧАТ — ДОБАВЛЕНО === */
-  socket.on("videochat-join", () => {
-    if (!socket.username) return;
-
-    socket.broadcast.emit("play-video-join-sound", {
-      username: socket.username
-    });
-  });
-  /* =========================================== */
 
   socket.on("disconnect", () => {
     if(socket.username) {
@@ -155,3 +140,5 @@ socket.on("user-start-video", () => {
 server.listen(3000, () => console.log("🚀 Сервер запущен http://localhost:3000"));
 
 
+
+вот тебе мой сервер.джс можешь весь код прислать используя это только не меняй ничего там пожалуйста скажи если что то еще нужно будет изменить например индекс
