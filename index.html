@@ -75,6 +75,9 @@
 </head>
 <body>
 
+  <!-- 🔊 АУДИО ДЛЯ ЗВУКА ПОДКЛЮЧЕНИЯ -->
+  <audio id="joinSound" src="join.mp3"></audio>
+
   <!-- Авторизация -->
   <div id="auth" class="active">
     <h2>Вход или регистрация</h2>
@@ -156,6 +159,7 @@
     socket.on('registerSuccess', msg => authMsg.textContent = msg);
     socket.on('registerError', msg => authMsg.textContent = msg);
     socket.on('loginError', msg => authMsg.textContent = msg);
+
     socket.on('loginSuccess', (data) => {
       username = data.username;
       admin = data.admin;
@@ -175,11 +179,11 @@
 
     function addMessage(msg) {
       const li = document.createElement('li');
-      if(msg.username === username) li.classList.add('my-message');
+      if (msg.username === username) li.classList.add('my-message');
 
-      if(msg.text) {
+      if (msg.text) {
         li.innerHTML = `<div class="message-username">${msg.username}</div><div>${msg.text}</div><div class="message-time">${msg.time}</div>`;
-      } else if(msg.data) {
+      } else if (msg.data) {
         li.innerHTML = `<div class="message-username">${msg.username}</div><img src="${msg.data}" style="max-width:200px; border-radius:8px; margin-top:4px;"><div class="message-time">${msg.time}</div>`;
       }
 
@@ -198,7 +202,7 @@
 
     imageInput.onchange = () => {
       const file = imageInput.files[0];
-      if(!file) return;
+      if (!file) return;
       const reader = new FileReader();
       reader.onload = () => {
         socket.emit("chat image", { username, data: reader.result });
@@ -225,6 +229,9 @@
     };
 
     startVideo.onclick = async () => {
+      /* 🔊 отправляем событие входа */
+      socket.emit("audio-join", username);
+
       localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       localVideo.srcObject = localStream;
 
@@ -286,10 +293,15 @@
     window.addEventListener("load", async () => {
       try {
         await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        console.log("Разрешение на камеру и микрофон получено автоматически");
-      } catch (err) {
-        console.warn("Пользователь отклонил доступ:", err);
-      }
+      } catch (err) {}
+    });
+
+    /* === 🔊 ПРОИГРЫВАНИЕ ЗВУКА ДЛЯ ВСЕХ ПОЛЬЗОВАТЕЛЕЙ === */
+
+    socket.on("audio-join", (name) => {
+      const snd = document.getElementById("joinSound");
+      snd.volume = 1;
+      snd.play().catch(() => {});
     });
 
   </script>
