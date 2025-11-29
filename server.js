@@ -1,3 +1,4 @@
+
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -52,10 +53,7 @@ function deleteOldMessages() {
   }
 }
 
-// запуск авто-удаления раз в 10 минут
 setInterval(deleteOldMessages, 10 * 60 * 1000);
-
-// очистка при старте сервера
 deleteOldMessages();
 /* =========================================== */
 
@@ -87,14 +85,14 @@ io.on("connection", (socket) => {
     socket.admin = user.admin;
     activeUsers.add(username);
 
-    deleteOldMessages(); // очищаем перед отправкой
+    deleteOldMessages(); 
 
     socket.emit("loginSuccess",{ username, admin: user.admin, messages });
   });
 
   socket.on("chat message", (msg) => {
     const time = new Date().toLocaleTimeString();
-    const message = { ...msg, time, timestamp: Date.now() }; // <<< добавлено timestamp
+    const message = { ...msg, time, timestamp: Date.now() };
     messages.push(message);
     saveData(messagesFile, messages);
     io.emit("chat message", message);
@@ -102,7 +100,7 @@ io.on("connection", (socket) => {
 
   socket.on("chat image", (msg) => {
     const time = new Date().toLocaleTimeString();
-    const message = { ...msg, time, timestamp: Date.now() }; // <<< добавлено timestamp
+    const message = { ...msg, time, timestamp: Date.now() };
     messages.push(message);
     saveData(messagesFile, messages);
     io.emit("chat image", message);
@@ -129,6 +127,16 @@ io.on("connection", (socket) => {
     socket.broadcast.emit("webrtc-candidate", candidate);
   });
 
+  /* === 🔔 УВЕДОМЛЕНИЕ О ВХОДЕ В ВИДЕОЧАТ — ДОБАВЛЕНО === */
+  socket.on("videochat-join", () => {
+    if (!socket.username) return;
+
+    socket.broadcast.emit("play-video-join-sound", {
+      username: socket.username
+    });
+  });
+  /* =========================================== */
+
   socket.on("disconnect", () => {
     if(socket.username) {
       activeUsers.delete(socket.username);
@@ -138,3 +146,4 @@ io.on("connection", (socket) => {
 });
 
 server.listen(3000, () => console.log("🚀 Сервер запущен http://localhost:3000"));
+
