@@ -20,13 +20,13 @@ const usersFile = path.join(__dirname, "users.json");
 const securityLogFile = path.join(__dirname, "security.log");
 
 function loadData(file, defaultValue = []) {
-  if(fs.existsSync(file)) return JSON.parse(fs.readFileSync(file,"utf8"));
-  fs.writeFileSync(file, JSON.stringify(defaultValue,null,2));
+  if (fs.existsSync(file)) return JSON.parse(fs.readFileSync(file, "utf8"));
+  fs.writeFileSync(file, JSON.stringify(defaultValue, null, 2));
   return defaultValue;
 }
 
 function saveData(file, data) {
-  fs.writeFileSync(file, JSON.stringify(data,null,2), "utf8");
+  fs.writeFileSync(file, JSON.stringify(data, null, 2), "utf8");
 }
 
 function logSecurity(message) {
@@ -38,7 +38,7 @@ let messages = loadData(messagesFile);
 let users = loadData(usersFile);
 let activeUsers = new Set();
 
-/* === АВТО-УДАЛЕНИЕ СООБЩЕНИЙ — добавлено === */
+/* === АВТО-УДАЛЕНИЕ СООБЩЕНИЙ === */
 const THREE_HOURS = 3 * 60 * 60 * 1000;
 
 function deleteOldMessages() {
@@ -52,33 +52,30 @@ function deleteOldMessages() {
   }
 }
 
-// запуск авто-удаления раз в 10 минут
 setInterval(deleteOldMessages, 10 * 60 * 1000);
-
-// очистка при старте сервера
 deleteOldMessages();
-/* =========================================== */
+/* ======================================= */
 
 io.on("connection", (socket) => {
   console.log("🔗 Пользователь подключился");
 
   socket.on("register", ({ username, password }) => {
-    if(!username || !password) return socket.emit("registerError", "Введите имя и пароль");
-    if(users.find(u => u.username.toLowerCase() === username.toLowerCase()))
+    if (!username || !password) return socket.emit("registerError", "Введите имя и пароль");
+    if (users.find(u => u.username.toLowerCase() === username.toLowerCase()))
       return socket.emit("registerError", "Имя уже занято");
 
     const isFirstUser = users.length === 0;
     users.push({ username, password, admin: isFirstUser });
     saveData(usersFile, users);
-    socket.emit("registerSuccess","Регистрация успешна!");
+    socket.emit("registerSuccess", "Регистрация успешна!");
   });
 
   socket.on("login", ({ username, password }) => {
     const user = users.find(u => u.username === username && u.password === password);
-    if(!user) return socket.emit("loginError","Неверное имя или пароль");
+    if (!user) return socket.emit("loginError", "Неверное имя или пароль");
 
-    if(activeUsers.has(username)) {
-      socket.emit("loginError","Этот пользователь уже онлайн!");
+    if (activeUsers.has(username)) {
+      socket.emit("loginError", "Этот пользователь уже онлайн!");
       logSecurity(`Двойной вход: ${username}`);
       return;
     }
@@ -87,14 +84,14 @@ io.on("connection", (socket) => {
     socket.admin = user.admin;
     activeUsers.add(username);
 
-    deleteOldMessages(); // очищаем перед отправкой
+    deleteOldMessages();
 
-    socket.emit("loginSuccess",{ username, admin: user.admin, messages });
+    socket.emit("loginSuccess", { username, admin: user.admin, messages });
   });
 
   socket.on("chat message", (msg) => {
     const time = new Date().toLocaleTimeString();
-    const message = { ...msg, time, timestamp: Date.now() }; // <<< добавлено timestamp
+    const message = { ...msg, time, timestamp: Date.now() };
     messages.push(message);
     saveData(messagesFile, messages);
     io.emit("chat message", message);
@@ -102,15 +99,14 @@ io.on("connection", (socket) => {
 
   socket.on("chat image", (msg) => {
     const time = new Date().toLocaleTimeString();
-    const message = { ...msg, time, timestamp: Date.now() }; // <<< добавлено timestamp
+    const message = { ...msg, time, timestamp: Date.now() };
     messages.push(message);
     saveData(messagesFile, messages);
     io.emit("chat image", message);
   });
 
-  // Очистка чата (только админ)
   socket.on("clear-messages", () => {
-    if(!socket.admin) return;
+    if (!socket.admin) return;
     messages = [];
     saveData(messagesFile, messages);
     io.emit("chat-cleared");
@@ -129,8 +125,13 @@ io.on("connection", (socket) => {
     socket.broadcast.emit("webrtc-candidate", candidate);
   });
 
+  /* === 🔊 СОБЫТИЕ ВХОДА В АУДИОЧАТ === */
+  socket.on("audio-join", (username) => {
+    socket.broadcast.emit("audio-join", username);
+  });
+
   socket.on("disconnect", () => {
-    if(socket.username) {
+    if (socket.username) {
       activeUsers.delete(socket.username);
       logSecurity(`${socket.username} отключился`);
     }
@@ -138,8 +139,3 @@ io.on("connection", (socket) => {
 });
 
 server.listen(3000, () => console.log("🚀 Сервер запущен http://localhost:3000"));
-
-
-
-
-
