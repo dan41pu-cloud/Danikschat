@@ -118,6 +118,13 @@ io.on("connection", (socket) => {
   socket.on("webrtc-offer", (offer) => {
     socket.broadcast.emit("webrtc-offer", offer);
   });
+  // Когда кто-то включает видеочат — сообщаем всем
+socket.on("user-start-video", () => {
+  if (socket.username) {
+    io.emit("video-user-joined", socket.username);
+  }
+});
+
 
   socket.on("webrtc-answer", (answer) => {
     socket.broadcast.emit("webrtc-answer", answer);
@@ -146,4 +153,5 @@ io.on("connection", (socket) => {
 });
 
 server.listen(3000, () => console.log("🚀 Сервер запущен http://localhost:3000"));
+
 
