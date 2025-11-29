@@ -236,7 +236,7 @@ startVideo.onclick = async () => {
   snd.currentTime = 0;
 
   /* 🔊 отправляем событие входа */
-  socket.emit("audio-join", username);
+  
 
   localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
   localVideo.srcObject = localStream;
@@ -314,5 +314,6 @@ startVideo.onclick = async () => {
   </script>
 </body>
 </html>
+
 
 
