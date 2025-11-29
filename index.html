@@ -74,7 +74,6 @@
   </style>
 </head>
 <body>
-<audio id="joinSound" src="https://cdn.pixabay.com/audio/2022/03/15/audio_4e47e1a716.mp3"></audio>
 
   <!-- Авторизация -->
   <div id="auth" class="active">
@@ -226,7 +225,6 @@
     };
 
     startVideo.onclick = async () => {
-      socket.emit("user-start-video");
       localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       localVideo.srcObject = localStream;
 
@@ -293,13 +291,7 @@
         console.warn("Пользователь отклонил доступ:", err);
       }
     });
-socket.on("video-user-joined", (user) => {
-  if (user !== username) {
-    document.getElementById("joinSound").play().catch(() => {});
-  }
-});
 
   </script>
 </body>
 </html>
-
