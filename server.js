@@ -38,6 +38,27 @@ let messages = loadData(messagesFile);
 let users = loadData(usersFile);
 let activeUsers = new Set();
 
+/* === АВТО-УДАЛЕНИЕ СООБЩЕНИЙ — добавлено === */
+const THREE_HOURS = 3 * 60 * 60 * 1000;
+
+function deleteOldMessages() {
+  const now = Date.now();
+  const filtered = messages.filter(m => !m.timestamp || now - m.timestamp < THREE_HOURS);
+
+  if (filtered.length !== messages.length) {
+    console.log(`🗑 Удалено старых сообщений: ${messages.length - filtered.length}`);
+    messages = filtered;
+    saveData(messagesFile, messages);
+  }
+}
+
+// запуск авто-удаления раз в 10 минут
+setInterval(deleteOldMessages, 10 * 60 * 1000);
+
+// очистка при старте сервера
+deleteOldMessages();
+/* =========================================== */
+
 io.on("connection", (socket) => {
   console.log("🔗 Пользователь подключился");
 
@@ -66,12 +87,14 @@ io.on("connection", (socket) => {
     socket.admin = user.admin;
     activeUsers.add(username);
 
+    deleteOldMessages(); // очищаем перед отправкой
+
     socket.emit("loginSuccess",{ username, admin: user.admin, messages });
   });
 
   socket.on("chat message", (msg) => {
     const time = new Date().toLocaleTimeString();
-    const message = { ...msg, time };
+    const message = { ...msg, time, timestamp: Date.now() }; // <<< добавлено timestamp
     messages.push(message);
     saveData(messagesFile, messages);
     io.emit("chat message", message);
@@ -79,7 +102,7 @@ io.on("connection", (socket) => {
 
   socket.on("chat image", (msg) => {
     const time = new Date().toLocaleTimeString();
-    const message = { ...msg, time };
+    const message = { ...msg, time, timestamp: Date.now() }; // <<< добавлено timestamp
     messages.push(message);
     saveData(messagesFile, messages);
     io.emit("chat image", message);
