@@ -76,7 +76,7 @@
 <body>
 
   <!-- 🔊 АУДИО ДЛЯ ЗВУКА ПОДКЛЮЧЕНИЯ -->
-  <audio id="joinSound" src="/join.mp3"></audio>
+  <audio id="joinSound" src="join.mp3"></audio>
 
   <!-- Авторизация -->
   <div id="auth" class="active">
@@ -228,36 +228,29 @@
       videoChat.style.display = "flex";
     };
 
-startVideo.onclick = async () => {
+    startVideo.onclick = async () => {
+      /* 🔊 отправляем событие входа */
+      socket.emit("audio-join", username);
 
-  // 🛑 Останавливаем музыку
-  const snd = document.getElementById("joinSound");
-  snd.pause();
-  snd.currentTime = 0;
+      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      localVideo.srcObject = localStream;
 
-  /* 🔊 отправляем событие входа */
-  
+      peerConnection = new RTCPeerConnection();
 
-  localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-  localVideo.srcObject = localStream;
+      localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
-  peerConnection = new RTCPeerConnection();
+      peerConnection.ontrack = e => {
+        remoteVideo.srcObject = e.streams[0];
+      };
 
-  localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+      peerConnection.onicecandidate = e => {
+        if (e.candidate) socket.emit("webrtc-candidate", e.candidate);
+      };
 
-  peerConnection.ontrack = e => {
-    remoteVideo.srcObject = e.streams[0];
-  };
-
-  peerConnection.onicecandidate = e => {
-    if (e.candidate) socket.emit("webrtc-candidate", e.candidate);
-  };
-
-  const offer = await peerConnection.createOffer();
-  await peerConnection.setLocalDescription(offer);
-  socket.emit("webrtc-offer", offer);
-};
-
+      const offer = await peerConnection.createOffer();
+      await peerConnection.setLocalDescription(offer);
+      socket.emit("webrtc-offer", offer);
+    };
 
     socket.on("webrtc-offer", async offer => {
       peerConnection = new RTCPeerConnection();
@@ -314,6 +307,3 @@ startVideo.onclick = async () => {
   </script>
 </body>
 </html>
-
-
-
