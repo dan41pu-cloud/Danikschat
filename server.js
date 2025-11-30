@@ -7,10 +7,7 @@ const path = require("path");
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
-  }
+  cors: { origin: "*", methods: ["GET", "POST"] }
 });
 
 app.use(express.static(__dirname));
@@ -31,7 +28,7 @@ function saveData(file, data) {
 
 function logSecurity(message) {
   const time = new Date().toISOString();
-  fs.appendFile(securityLogFile, `[${time}] ${message}\n`, err => {});
+  fs.appendFile(securityLogFile, `[${time}] ${message}\n`, () => {});
 }
 
 let messages = loadData(messagesFile);
@@ -46,7 +43,6 @@ function deleteOldMessages() {
   const filtered = messages.filter(m => !m.timestamp || now - m.timestamp < THREE_HOURS);
 
   if (filtered.length !== messages.length) {
-    console.log(`🗑 Удалено старых сообщений: ${messages.length - filtered.length}`);
     messages = filtered;
     saveData(messagesFile, messages);
   }
@@ -54,10 +50,8 @@ function deleteOldMessages() {
 
 setInterval(deleteOldMessages, 10 * 60 * 1000);
 deleteOldMessages();
-/* ======================================= */
 
 io.on("connection", (socket) => {
-  console.log("🔗 Пользователь подключился");
 
   socket.on("register", ({ username, password }) => {
     if (!username || !password) return socket.emit("registerError", "Введите имя и пароль");
@@ -91,18 +85,18 @@ io.on("connection", (socket) => {
 
   socket.on("chat message", (msg) => {
     const time = new Date().toLocaleTimeString();
-    const message = { ...msg, time, timestamp: Date.now() };
-    messages.push(message);
+    const data = { ...msg, time, timestamp: Date.now() };
+    messages.push(data);
     saveData(messagesFile, messages);
-    io.emit("chat message", message);
+    io.emit("chat message", data);
   });
 
   socket.on("chat image", (msg) => {
     const time = new Date().toLocaleTimeString();
-    const message = { ...msg, time, timestamp: Date.now() };
-    messages.push(message);
+    const data = { ...msg, time, timestamp: Date.now() };
+    messages.push(data);
     saveData(messagesFile, messages);
-    io.emit("chat image", message);
+    io.emit("chat image", data);
   });
 
   socket.on("clear-messages", () => {
@@ -125,7 +119,7 @@ io.on("connection", (socket) => {
     socket.broadcast.emit("webrtc-candidate", candidate);
   });
 
-  /* === 🔊 СОБЫТИЕ ВХОДА В АУДИОЧАТ === */
+  /* === 🔊 УВЕДОМЛЕНИЕ О ВХОДЕ В ВИДЕОЧАТ === */
   socket.on("audio-join", (username) => {
     socket.broadcast.emit("audio-join", username);
   });
@@ -138,4 +132,6 @@ io.on("connection", (socket) => {
   });
 });
 
-server.listen(3000, () => console.log("🚀 Сервер запущен http://localhost:3000"));
+server.listen(3000, () =>
+  console.log("🚀 Сервер запущен http://localhost:3000")
+);
