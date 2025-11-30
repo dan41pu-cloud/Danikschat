@@ -133,6 +133,9 @@
   <script>
     const socket = io();
 
+    /* === ВАЖНО: теперь есть статус видеозвонка === */
+    let inCall = false;
+
     const authDiv = document.getElementById('auth');
     const chatDiv = document.getElementById('chat');
     const usernameInput = document.getElementById('username');
@@ -163,6 +166,7 @@
     socket.on('loginSuccess', (data) => {
       username = data.username;
       admin = data.admin;
+
       authDiv.classList.remove('active');
       chatDiv.classList.add('active');
       welcome.textContent = `Привет, ${username}!`;
@@ -228,37 +232,44 @@
       videoChat.style.display = "flex";
     };
 
-   startVideo.onclick = async () => {
+    /* === НАЧАТЬ ВИДЕО === */
+    startVideo.onclick = async () => {
 
-  // 🛑 Останавливаем музыку
-  const snd = document.getElementById("joinSound");
-  snd.pause();
-  snd.currentTime = 0;
+      inCall = true; // теперь пользователь в звонке
 
-  // ❌ ЭТО УДАЛЯЕМ
-  // socket.emit("audio-join", username);
+      // Останавливаем музыку у себя
+      const snd = document.getElementById("joinSound");
+      snd.pause();
+      snd.currentTime = 0;
 
-  localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-  localVideo.srcObject = localStream;
+      // Сообщаем серверу: кто-то вошёл в звонок
+      socket.emit("audio-join", username);
 
-  peerConnection = new RTCPeerConnection();
+      // Запрашиваем камеру только здесь!
+      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      localVideo.srcObject = localStream;
 
-  localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+      peerConnection = new RTCPeerConnection();
 
-  peerConnection.ontrack = e => {
-    remoteVideo.srcObject = e.streams[0];
-  };
+      localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
-  peerConnection.onicecandidate = e => {
-    if (e.candidate) socket.emit("webrtc-candidate", e.candidate);
-  };
+      peerConnection.ontrack = e => {
+        remoteVideo.srcObject = e.streams[0];
+      };
 
-  const offer = await peerConnection.createOffer();
-  await peerConnection.setLocalDescription(offer);
-  socket.emit("webrtc-offer", offer);
-};
+      peerConnection.onicecandidate = e => {
+        if (e.candidate) socket.emit("webrtc-candidate", e.candidate);
+      };
+
+      const offer = await peerConnection.createOffer();
+      await peerConnection.setLocalDescription(offer);
+      socket.emit("webrtc-offer", offer);
+    };
 
     socket.on("webrtc-offer", async offer => {
+
+      inCall = true;
+
       peerConnection = new RTCPeerConnection();
 
       peerConnection.ontrack = e => {
@@ -289,28 +300,24 @@
       }
     });
 
+    /* === ОТКЛЮЧИТЬ ВИДЕО === */
     stopVideo.onclick = () => {
+      inCall = false;
+
       if (localStream) localStream.getTracks().forEach(track => track.stop());
       if (peerConnection) peerConnection.close();
       remoteVideo.srcObject = null;
     };
 
-    /* === АВТОЗАПРОС КАМЕРЫ И МИКРО === */
-    window.addEventListener("load", async () => {
-      try {
-        await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      } catch (err) {}
-    });
-
-    /* === 🔊 ПРОИГРЫВАНИЕ ЗВУКА ДЛЯ ВСЕХ ПОЛЬЗОВАТЕЛЕЙ === */
-
+    /* === ПРОИГРЫВАНИЕ ЗВУКА ТОЛЬКО ЕСЛИ ПОЛЬЗОВАТЕЛЬ НЕ В ЗВОНКЕ === */
     socket.on("audio-join", (name) => {
-      const snd = document.getElementById("joinSound");
-      snd.volume = 1;
-      snd.play().catch(() => {});
+      if (!inCall) {
+        const snd = document.getElementById("joinSound");
+        snd.volume = 1;
+        snd.play().catch(() => {});
+      }
     });
 
   </script>
 </body>
 </html>
-
