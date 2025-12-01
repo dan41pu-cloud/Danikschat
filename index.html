@@ -71,6 +71,45 @@
 
     #emojiPicker { margin-top: 10px; display: flex; gap: 6px; }
     #emojiPicker button { cursor: pointer; padding: 6px 10px; font-size: 18px; }
+
+    /* Видеочат стиль (не ломаем остальной UI, но улучшаем видеочат) */
+    #videoChat {
+      margin-top: 20px;
+      background:#36393f;
+      padding: 15px;
+      border-radius: 12px;
+      display: none;
+      flex-direction: column;
+      max-width: 420px;
+      width: 90%;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    #videoChat .controls {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+
+    .vc-btn {
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      background: #5865f2;
+      color: white;
+      min-width: 120px;
+    }
+    .vc-btn:hover { background: #4752c4; }
+
+    .vc-btn.danger { background: #f04747; }
+    .vc-btn.secondary { background: #4a4f55; }
+
+    video { background: black; border-radius: 8px; }
+    #localVideo { height: 240px; object-fit: cover; }
+    #remoteVideo { height: 240px; object-fit: cover; margin-top: 10px; }
   </style>
 </head>
 <body>
@@ -108,28 +147,22 @@
   </div>
 
   <!-- ВИДЕОЧАТ -->
-  <div id="videoChat" style="
-    margin-top: 20px;
-    background:#36393f;
-    padding: 15px;
-    border-radius: 12px;
-    display: none;
-    flex-direction: column;
-    max-width: 420px;
-    width: 90%;
-    margin-left: auto;
-    margin-right: auto;
-  ">
+  <div id="videoChat">
     <h3>Видеочат</h3>
 
     <video id="localVideo" autoplay playsinline muted style="width:100%; border-radius:10px; background:black;"></video>
     <video id="remoteVideo" autoplay playsinline style="width:100%; margin-top:10px; border-radius:10px; background:black;"></video>
 
-    <button id="startVideo">Начать видеозвонок</button>
-    <button id="stopVideo" style="background:#f04747;">Отключить</button>
+    <div class="controls">
+      <button id="startVideo" class="vc-btn">Начать видеозвонок</button>
+      <button id="stopVideo" class="vc-btn danger">Отключить</button>
+      <button id="toggleVideo" class="vc-btn secondary">Выключить камеру</button>
+      <button id="toggleAudio" class="vc-btn secondary">Выключить микрофон</button>
+    </div>
   </div>
 
-  <script src="https://danikschat-dvtc.onrender.com/socket.io/socket.io.js"></script>
+  <!-- Подключаем socket.io клиентскую библиотеку с сервера -->
+  <script src="/socket.io/socket.io.js"></script>
   <script>
     const socket = io();
 
@@ -225,115 +258,166 @@
     const localVideo = document.getElementById("localVideo");
     const remoteVideo = document.getElementById("remoteVideo");
 
-    let localStream;
-    let peerConnection;
+    const toggleVideo = document.getElementById("toggleVideo");
+    const toggleAudio = document.getElementById("toggleAudio");
+
+    let localStream = null;
+    let peerConnection = null;
+
+    // Переменные для управления mute
+    let videoEnabled = true;
+    let audioEnabled = true;
 
     openVideoChat.onclick = () => {
       videoChat.style.display = "flex";
     };
 
+    /* === Функции: получение ICE от сервера и создание RTCPeerConnection === */
+    let iceServers = null;
+
+    async function createPeerConnection() {
+      if (!iceServers) {
+        socket.emit("request-ice");
+        iceServers = await new Promise(resolve =>
+          socket.once("ice-servers", resolve)
+        );
+      }
+
+      const pc = new RTCPeerConnection({ iceServers });
+
+      pc.ontrack = e => {
+        // показываем поток удалённого участника
+        remoteVideo.srcObject = e.streams[0];
+      };
+
+      pc.onicecandidate = e => {
+        if (e.candidate) socket.emit("webrtc-candidate", e.candidate);
+      };
+
+      return pc;
+    }
+
     /* === НАЧАТЬ ВИДЕО === */
     startVideo.onclick = async () => {
+      try {
+        inCall = true;
 
-      inCall = true; // теперь пользователь в звонке
+        // Останавливаем звук локально (если был)
+        const snd = document.getElementById("joinSound");
+        snd.pause();
+        snd.currentTime = 0;
 
-      // Останавливаем музыку у себя
-      const snd = document.getElementById("joinSound");
-      snd.pause();
-      snd.currentTime = 0;
+        socket.emit("audio-join", username);
 
-      // Сообщаем серверу: кто-то вошёл в звонок
-      socket.emit("audio-join", username);
+        // Запрашиваем камеру/микрофон
+        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        localVideo.srcObject = localStream;
 
-      // Запрашиваем камеру только здесь!
-      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      localVideo.srcObject = localStream;
+        // создаём RTCPeerConnection с ICE от сервера
+        peerConnection = await createPeerConnection();
 
-      peerConnection = new RTCPeerConnection();
-      // Node Get ICE STUN and TURN list
-let o = {
-      format: "urls"
-};
+        // добавляем локальные дорожки
+        localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
-let bodyString = JSON.stringify(o);
-let https = require("https://danikschat-1-xabj.onrender.com");
-let options = {
-      host: "global.xirsys.net",
-      path: "/_turn/MyFirstApp",
-      method: "PUT",
-      headers: {
-          "Authorization": "Basic " + Buffer.from("daniil:787333b8-cedf-11f0-bad6-0242ac130003").toString("base64"),
-          "Content-Type": "application/json",
-          "Content-Length": bodyString.length
+        // сохраняем начальный статус кнопок
+        videoEnabled = true;
+        audioEnabled = true;
+        toggleVideo.textContent = "Выключить камеру";
+        toggleAudio.textContent = "Выключить микрофон";
+
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+        socket.emit("webrtc-offer", offer);
+      } catch (err) {
+        console.error("Ошибка при старте видео:", err);
+        alert("Не удалось включить камеру/микрофон: " + err.message);
       }
-};
-let httpreq = https.request(options, function(httpres) {
-      let str = "";
-      httpres.on("data", function(data){ str += data; });
-      httpres.on("error", function(e){ console.log("error: ",e); });
-      httpres.on("end", function(){ 
-          console.log("ICE List: ", str);
-      });
-});
-httpreq.on("error", function(e){ console.log("request error: ",e); });
-httpreq.end();
-
-      localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-
-      peerConnection.ontrack = e => {
-        remoteVideo.srcObject = e.streams[0];
-      };
-
-      peerConnection.onicecandidate = e => {
-        if (e.candidate) socket.emit("webrtc-candidate", e.candidate);
-      };
-
-      const offer = await peerConnection.createOffer();
-      await peerConnection.setLocalDescription(offer);
-      socket.emit("webrtc-offer", offer);
     };
 
-    socket.on("webrtc-offer", async offer => {
+    // При получении оффера — отвечаем (act as callee)
+    socket.on('webrtc-offer', async offer => {
+      try {
+        inCall = true;
 
-      inCall = true;
+        // создаём или обновляем локальный поток
+        if (!localStream) {
+          localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+          localVideo.srcObject = localStream;
+        }
 
-      peerConnection = new RTCPeerConnection();
+        peerConnection = await createPeerConnection();
 
-      peerConnection.ontrack = e => {
-        remoteVideo.srcObject = e.streams[0];
-      };
+        localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
-      peerConnection.onicecandidate = e => {
-        if (e.candidate) socket.emit("webrtc-candidate", e.candidate);
-      };
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+        socket.emit("webrtc-answer", answer);
 
-      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      localVideo.srcObject = localStream;
-      localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-
-      await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-      const answer = await peerConnection.createAnswer();
-      await peerConnection.setLocalDescription(answer);
-      socket.emit("webrtc-answer", answer);
+        // Сбрасываем кнопки
+        videoEnabled = true;
+        audioEnabled = true;
+        toggleVideo.textContent = "Выключить камеру";
+        toggleAudio.textContent = "Выключить микрофон";
+      } catch (err) {
+        console.error("Ошибка при приёме оффера:", err);
+      }
     });
 
     socket.on("webrtc-answer", async answer => {
-      await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+      try {
+        if (peerConnection) {
+          await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+        }
+      } catch (err) {
+        console.error("Ошибка при установке answer:", err);
+      }
     });
 
     socket.on("webrtc-candidate", async candidate => {
-      if (peerConnection) {
-        await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+      try {
+        if (peerConnection) {
+          await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+        }
+      } catch (err) {
+        console.error("Ошибка при добавлении кандидата:", err);
       }
     });
+
+    /* === Кнопки mute/unmute === */
+    toggleVideo.onclick = () => {
+      if (!localStream) return;
+      videoEnabled = !videoEnabled;
+      localStream.getVideoTracks().forEach(track => track.enabled = videoEnabled);
+      toggleVideo.textContent = videoEnabled ? "Выключить камеру" : "Включить камеру";
+    };
+
+    toggleAudio.onclick = () => {
+      if (!localStream) return;
+      audioEnabled = !audioEnabled;
+      localStream.getAudioTracks().forEach(track => track.enabled = audioEnabled);
+      toggleAudio.textContent = audioEnabled ? "Выключить микрофон" : "Включить микрофон";
+    };
 
     /* === ОТКЛЮЧИТЬ ВИДЕО === */
     stopVideo.onclick = () => {
       inCall = false;
 
-      if (localStream) localStream.getTracks().forEach(track => track.stop());
-      if (peerConnection) peerConnection.close();
+      if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+        localStream = null;
+      }
+      if (peerConnection) {
+        peerConnection.close();
+        peerConnection = null;
+      }
       remoteVideo.srcObject = null;
+
+      // вернуть кнопки в начальное состояние
+      videoEnabled = true;
+      audioEnabled = true;
+      toggleVideo.textContent = "Выключить камеру";
+      toggleAudio.textContent = "Выключить микрофон";
     };
 
     /* === ПРОИГРЫВАНИЕ ЗВУКА ТОЛЬКО ЕСЛИ ПОЛЬЗОВАТЕЛЬ НЕ В ЗВОНКЕ === */
@@ -348,5 +432,3 @@ httpreq.end();
   </script>
 </body>
 </html>
-
-
