@@ -1,8 +1,10 @@
+// server.js
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
 const fs = require("fs");
 const path = require("path");
+const https = require("https"); // для запроса к Xirsys
 
 const app = express();
 const server = http.createServer(app);
@@ -51,7 +53,77 @@ function deleteOldMessages() {
 setInterval(deleteOldMessages, 10 * 60 * 1000);
 deleteOldMessages();
 
+/* =======================
+   XIRSYS: получение ICE
+   ======================= */
+
+// Заменить user:token, если нужно поставить другие
+const XIRSYS_AUTH_USER = "daniil";
+const XIRSYS_AUTH_TOKEN = "787333b8-cedf-11f0-bad6-0242ac130003";
+const XIRSYS_APP_PATH = "/_turn/MyFirstApp";
+
+async function getXirsysServers() {
+  return new Promise((resolve, reject) => {
+    const body = JSON.stringify({ format: "ice" });
+
+    const options = {
+      host: "global.xirsys.net",
+      path: XIRSYS_APP_PATH,
+      method: "PUT",
+      headers: {
+        "Authorization":
+          "Basic " + Buffer.from(`${XIRSYS_AUTH_USER}:${XIRSYS_AUTH_TOKEN}`).toString("base64"),
+        "Content-Type": "application/json",
+        "Content-Length": Buffer.byteLength(body),
+      },
+      timeout: 10000
+    };
+
+    const req = https.request(options, (res) => {
+      let data = "";
+      res.on("data", (chunk) => (data += chunk));
+      res.on("end", () => {
+        try {
+          const json = JSON.parse(data);
+          // xirsys возвращает структуру, в v.iceServers лежит массив
+          if (json && json.v && json.v.iceServers) {
+            resolve(json.v.iceServers);
+          } else {
+            // на случай неожиданного ответа
+            reject(new Error("Unexpected Xirsys response: " + data));
+          }
+        } catch (err) {
+          reject(err);
+        }
+      });
+    });
+
+    req.on("error", (err) => reject(err));
+    req.on("timeout", () => {
+      req.destroy();
+      reject(new Error("Xirsys request timed out"));
+    });
+
+    req.write(body);
+    req.end();
+  });
+}
+
+/* ====== Socket.IO ====== */
+
 io.on("connection", (socket) => {
+
+  // Клиент запросил список ICE серверов
+  socket.on("request-ice", async () => {
+    try {
+      const ice = await getXirsysServers();
+      socket.emit("ice-servers", ice);
+    } catch (err) {
+      console.log("ICE ERROR:", err);
+      // fallback на публичный STUN
+      socket.emit("ice-servers", [{ urls: "stun:stun.l.google.com:19302" }]);
+    }
+  });
 
   socket.on("register", ({ username, password }) => {
     if (!username || !password) return socket.emit("registerError", "Введите имя и пароль");
