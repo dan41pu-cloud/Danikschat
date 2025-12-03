@@ -1,434 +1,333 @@
+<!-- Заготовка: HTML + JS + CSS + приватные чаты + контакты + приватные звонки -->
+<!-- Очень большой проект: здесь только фронтенд файл index.html. В следующем сообщении я добавлю server.js -->
+
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta charset="UTF-8" />
-  <title>Danikschat</title>
-  <style>
-    body {
-      font-family: sans-serif;
-      background: #2f3136;
-      color: white;
-      margin: 0;
-      padding: 20px;
-    }
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Messenger</title>
+<style>
+ body {
+   font-family: sans-serif;
+   background: #2f3136;
+   color: white;
+   margin: 0;
+   padding: 0;
+ }
 
-    #auth, #chat {
-      background: #36393f;
-      padding: 20px;
-      border-radius: 12px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.3);
-      width: 90%;
-      max-width: 420px;
-      display: none;
-      flex-direction: column;
-      margin: 20px auto;
-    }
+ #auth, #messenger {
+   max-width: 900px;
+   margin: 20px auto;
+   background: #36393f;
+   padding: 20px;
+   border-radius: 12px;
+   display: none;
+ }
 
-    #auth.active, #chat.active {
-      display: flex;
-    }
+ .active { display: block; }
 
-    input, button {
-      margin: 5px 0;
-      padding: 10px;
-      border: none;
-      border-radius: 6px;
-      width: 100%;
-    }
+ input, button {
+   margin: 5px 0;
+   padding: 10px;
+   border: none;
+   border-radius: 6px;
+ }
 
-    button {
-      background: #5865f2;
-      color: white;
-      cursor: pointer;
-    }
+ button {
+   background: #5865f2;
+   color: white;
+   cursor: pointer;
+ }
+ button:hover { background: #4752c4; }
 
-    button:hover {
-      background: #4752c4;
-    }
+ /* Messenger layout */
+ #messenger {
+   display: flex;
+   gap: 10px;
+   height: 80vh;
+ }
 
-    ul {
-      list-style: none;
-      padding: 0;
-      margin: 0;
-      flex-grow: 1;
-      overflow-y: auto;
-      max-height: 300px;
-    }
+ #sidebar {
+   width: 30%;
+   background: #2f3136;
+   border-radius: 12px;
+   padding: 10px;
+   overflow-y: auto;
+ }
 
-    li {
-      margin: 8px 0;
-      padding: 10px;
-      border-radius: 10px;
-      background: #40444b;
-      width: fit-content;
-      max-width: 70%;
-    }
+ #contacts li {
+   padding: 10px;
+   background: #40444b;
+   margin: 5px 0;
+   border-radius: 8px;
+   cursor: pointer;
+ }
 
-    .my-message { background: #7289da; margin-left: auto; }
-    .message-username { font-weight: bold; margin-bottom: 4px; }
-    .message-time { font-size: 10px; text-align: right; color: gray; }
+ #contacts li:hover {
+   background: #4f545c;
+ }
 
-    #emojiPicker { margin-top: 10px; display: flex; gap: 6px; }
-    #emojiPicker button { cursor: pointer; padding: 6px 10px; font-size: 18px; }
+ #chatArea {
+   width: 70%;
+   background: #36393f;
+   border-radius: 12px;
+   padding: 10px;
+   display: flex;
+   flex-direction: column;
+ }
 
-    /* Видеочат стиль (не ломаем остальной UI, но улучшаем видеочат) */
-    #videoChat {
-      margin-top: 20px;
-      background:#36393f;
-      padding: 15px;
-      border-radius: 12px;
-      display: none;
-      flex-direction: column;
-      max-width: 420px;
-      width: 90%;
-      margin-left: auto;
-      margin-right: auto;
-    }
+ #messages {
+   flex-grow: 1;
+   overflow-y: auto;
+   list-style: none;
+   padding: 0;
+ }
 
-    #videoChat .controls {
-      display: flex;
-      gap: 8px;
-      margin-top: 10px;
-      flex-wrap: wrap;
-    }
+ #messages li {
+   background: #40444b;
+   padding: 10px;
+   border-radius: 10px;
+   width: fit-content;
+   max-width: 70%;
+   margin: 6px 0;
+ }
 
-    .vc-btn {
-      padding: 8px 10px;
-      border-radius: 8px;
-      border: none;
-      cursor: pointer;
-      background: #5865f2;
-      color: white;
-      min-width: 120px;
-    }
-    .vc-btn:hover { background: #4752c4; }
+ .my-message { margin-left: auto; background: #7289da; }
 
-    .vc-btn.danger { background: #f04747; }
-    .vc-btn.secondary { background: #4a4f55; }
+ #messageInput { display: flex; gap: 5px; }
 
-    video { background: black; border-radius: 8px; }
-    #localVideo { height: 240px; object-fit: cover; }
-    #remoteVideo { height: 240px; object-fit: cover; margin-top: 10px; }
-  </style>
+ #callUser {
+   margin-top: 10px;
+   background: #00aaff;
+ }
+</style>
 </head>
 <body>
 
-  <!-- 🔊 АУДИО ДЛЯ ЗВУКА ПОДКЛЮЧЕНИЯ -->
-  <audio id="joinSound" src="join.mp3"></audio>
+<!-- Авторизация -->
+<div id="auth" class="active">
+  <h2>Вход / Регистрация</h2>
+  <input id="username" placeholder="Имя" />
+  <input id="password" type="password" placeholder="Пароль" />
+  <button id="login">Войти</button>
+  <button id="register">Регистрация</button>
+  <p id="authMsg"></p>
+</div>
 
-  <!-- Авторизация -->
-  <div id="auth" class="active">
-    <h2>Вход или регистрация</h2>
-    <input id="username" placeholder="Имя пользователя" />
-    <input id="password" type="password" placeholder="Пароль" />
-    <button id="login">Войти</button>
-    <button id="register">Зарегистрироваться</button>
-    <p id="authMsg"></p>
+<!-- Мессенджер -->
+<div id="messenger">
+  <div id="sidebar">
+    <h3>Контакты</h3>
+    <ul id="contacts"></ul>
   </div>
 
-  <!-- Чат -->
-  <div id="chat">
-    <h2 id="welcome"></h2>
+  <div id="chatArea">
+    <h2 id="chatWith">Выберите контакт</h2>
     <ul id="messages"></ul>
-    <input id="input" placeholder="Введите сообщение..." />
-    <button id="send">Отправить</button>
-    <input type="file" id="imageInput" accept="image/*" />
-    <div id="emojiPicker">
-      <button class="emoji">😀</button>
-      <button class="emoji">😂</button>
-      <button class="emoji">😍</button>
-      <button class="emoji">😎</button>
-      <button class="emoji">👍</button>
+
+    <div id="messageInput">
+      <input id="input" placeholder="Сообщение...">
+      <button id="send">Отправить</button>
     </div>
 
-    <!-- кнопка вызова видео -->
-    <button id="openVideoChat">Видеочат</button>
+    <button id="callUser">Позвонить</button>
   </div>
+</div>
 
-  <!-- ВИДЕОЧАТ -->
-  <div id="videoChat">
-    <h3>Видеочат</h3>
+<!-- Video Chat -->
+<div id="videoChat" style="display:none; max-width:900px; margin:20px auto; background:#36393f; padding:20px; border-radius:12px;">
+  <h3>Видеозвонок</h3>
+  <video id="localVideo" autoplay muted playsinline style="width:45%; background:black;"></video>
+  <video id="remoteVideo" autoplay playsinline style="width:45%; background:black; margin-left:5%;"></video>
 
-    <video id="localVideo" autoplay playsinline muted style="width:100%; border-radius:10px; background:black;"></video>
-    <video id="remoteVideo" autoplay playsinline style="width:100%; margin-top:10px; border-radius:10px; background:black;"></video>
+  <br>
+  <button id="endCall">Завершить</button>
+</div>
 
-    <div class="controls">
-      <button id="startVideo" class="vc-btn">Начать видеозвонок</button>
-      <button id="stopVideo" class="vc-btn danger">Отключить</button>
-      <button id="toggleVideo" class="vc-btn secondary">Выключить камеру</button>
-      <button id="toggleAudio" class="vc-btn secondary">Выключить микрофон</button>
-    </div>
-  </div>
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const socket = io();
 
-  <!-- Подключаем socket.io клиентскую библиотеку с сервера -->
-  <script src="/socket.io/socket.io.js"></script>
-  <script>
-    const socket = io();
+let username = null;
+let users = [];
+let allMessages = {}; // { user: [ {from,text}, ... ] }
+let currentChatUser = null;
 
-    /* === ВАЖНО: теперь есть статус видеозвонка === */
-    let inCall = false;
+const auth = document.getElementById("auth");
+const messenger = document.getElementById("messenger");
+const contacts = document.getElementById("contacts");
+const messages = document.getElementById("messages");
+const chatWith = document.getElementById("chatWith");
 
-    const authDiv = document.getElementById('auth');
-    const chatDiv = document.getElementById('chat');
-    const usernameInput = document.getElementById('username');
-    const passwordInput = document.getElementById('password');
-    const authMsg = document.getElementById('authMsg');
-    const welcome = document.getElementById('welcome');
-    const input = document.getElementById('input');
-    const send = document.getElementById('send');
-    const messages = document.getElementById('messages');
-    const imageInput = document.getElementById("imageInput");
-    const emojiButtons = document.querySelectorAll(".emoji");
+function saveLocal(from, to, text) {
+  const other = from === username ? to : from;
+  if (!allMessages[other]) allMessages[other] = [];
+  allMessages[other].push({ from, text });
+}
 
-    let username = null;
-    let admin = false;
+function addMessage(msg) {
+  const li = document.createElement("li");
+  if (msg.from === username) li.classList.add("my-message");
+  li.textContent = msg.from + ": " + msg.text;
+  messages.appendChild(li);
+  messages.scrollTop = messages.scrollHeight;
+}
 
-    document.getElementById('register').onclick = () => {
-      socket.emit('register', { username: usernameInput.value.trim(), password: passwordInput.value.trim() });
-    };
+function openChatWith(user) {
+  currentChatUser = user;
+  chatWith.textContent = "Чат с " + user;
+  messages.innerHTML = "";
+  (allMessages[user] || []).forEach(addMessage);
+}
 
-    document.getElementById('login').onclick = () => {
-      socket.emit('login', { username: usernameInput.value.trim(), password: passwordInput.value.trim() });
-    };
+function renderContacts(list) {
+  contacts.innerHTML = "";
+  list.forEach(name => {
+    if (name === username) return;
+    const li = document.createElement("li");
+    li.textContent = name;
+    li.onclick = () => openChatWith(name);
+    contacts.appendChild(li);
+  });
+}
 
-    socket.on('registerSuccess', msg => authMsg.textContent = msg);
-    socket.on('registerError', msg => authMsg.textContent = msg);
-    socket.on('loginError', msg => authMsg.textContent = msg);
+// Регистрация
+register.onclick = () => {
+  socket.emit("register", {
+    username: username.value.trim(),
+    password: password.value.trim(),
+  });
+};
 
-    socket.on('loginSuccess', (data) => {
-      username = data.username;
-      admin = data.admin;
+login.onclick = () => {
+  socket.emit("login", {
+    username: username.value.trim(),
+    password: password.value.trim(),
+  });
+};
 
-      authDiv.classList.remove('active');
-      chatDiv.classList.add('active');
-      welcome.textContent = `Привет, ${username}!`;
-      data.messages.forEach(addMessage);
-    });
+socket.on("registerSuccess", m => authMsg.textContent = m);
+socket.on("registerError", m => authMsg.textContent = m);
+socket.on("loginError", m => authMsg.textContent = m);
 
-    send.onclick = () => {
-      const text = input.value.trim();
-      if (text) {
-        socket.emit('chat message', { username, text });
-        input.value = '';
-      }
-    };
+socket.on("loginSuccess", data => {
+  username = data.username;
+  users = data.users;
 
-    function addMessage(msg) {
-      const li = document.createElement('li');
-      if (msg.username === username) li.classList.add('my-message');
+  auth.classList.remove("active");
+  messenger.classList.add("active");
 
-      if (msg.text) {
-        li.innerHTML = `<div class="message-username">${msg.username}</div><div>${msg.text}</div><div class="message-time">${msg.time}</div>`;
-      } else if (msg.data) {
-        li.innerHTML = `<div class="message-username">${msg.username}</div><img src="${msg.data}" style="max-width:200px; border-radius:8px; margin-top:4px;"><div class="message-time">${msg.time}</div>`;
-      }
+  renderContacts(users);
+});
 
-      messages.appendChild(li);
-      messages.scrollTop = messages.scrollHeight;
-    }
+// Отправка сообщений
+send.onclick = () => {
+  if (!currentChatUser) return alert("Выберите контакт!");
+  const text = input.value.trim();
+  if (!text) return;
 
-    socket.on('chat message', addMessage);
-    socket.on('chat image', addMessage);
+  socket.emit("privateMessage", {
+    from: username,
+    to: currentChatUser,
+    text
+  });
 
-    emojiButtons.forEach(btn => {
-      btn.onclick = () => {
-        socket.emit("chat message", { username, text: btn.textContent });
-      };
-    });
+  saveLocal(username, currentChatUser, text);
+  addMessage({ from: username, text });
+  input.value = "";
+};
 
-    imageInput.onchange = () => {
-      const file = imageInput.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = () => {
-        socket.emit("chat image", { username, data: reader.result });
-      };
-      reader.readAsDataURL(file);
-      imageInput.value = "";
-    };
+socket.on("privateMessage", msg => {
+  saveLocal(msg.from, username, msg.text);
+  if (currentChatUser === msg.from)
+    addMessage(msg);
+});
 
-    /* === ВИДЕОЧАТ === */
+/* =============================
+    WebRTC: приватные звонки
+============================= */
 
-    const videoChat = document.getElementById("videoChat");
-    const openVideoChat = document.getElementById("openVideoChat");
-    const startVideo = document.getElementById("startVideo");
-    const stopVideo = document.getElementById("stopVideo");
+let localStream = null;
+let peer = null;
+let callTarget = null;
 
-    const localVideo = document.getElementById("localVideo");
-    const remoteVideo = document.getElementById("remoteVideo");
+const videoChat = document.getElementById("videoChat");
+const localVideo = document.getElementById("localVideo");
+const remoteVideo = document.getElementById("remoteVideo");
 
-    const toggleVideo = document.getElementById("toggleVideo");
-    const toggleAudio = document.getElementById("toggleAudio");
+callUser.onclick = async () => {
+  if (!currentChatUser) return alert("Выберите контакт!");
+  callTarget = currentChatUser;
+  await startCall();
+};
+\ async function startCall() {
+  videoChat.style.display = "block";
+  localStream = await navigator.mediaDevices.getUserMedia({ video:true, audio:true });
+  localVideo.srcObject = localStream;
 
-    let localStream = null;
-    let peerConnection = null;
+  peer = new RTCPeerConnection();
+  localStream.getTracks().forEach(t => peer.addTrack(t, localStream));
 
-    // Переменные для управления mute
-    let videoEnabled = true;
-    let audioEnabled = true;
+  peer.ontrack = e => remoteVideo.srcObject = e.streams[0];
+  peer.onicecandidate = e => {
+    if (e.candidate)
+      socket.emit("call-candidate", { to: callTarget, candidate: e.candidate });
+  };
 
-    openVideoChat.onclick = () => {
-      videoChat.style.display = "flex";
-    };
+  const offer = await peer.createOffer();
+  await peer.setLocalDescription(offer);
 
-    /* === Функции: получение ICE от сервера и создание RTCPeerConnection === */
-    let iceServers = null;
+  socket.emit("call-offer", {
+    to: callTarget,
+    from: username,
+    offer
+  });
+}
 
-    async function createPeerConnection() {
-      if (!iceServers) {
-        socket.emit("request-ice");
-        iceServers = await new Promise(resolve =>
-          socket.once("ice-servers", resolve)
-        );
-      }
+socket.on("call-offer", async data => {
+  callTarget = data.from;
+  videoChat.style.display = "block";
 
-      const pc = new RTCPeerConnection({ iceServers });
+  localStream = await navigator.mediaDevices.getUserMedia({ video:true, audio:true });
+  localVideo.srcObject = localStream;
 
-      pc.ontrack = e => {
-        // показываем поток удалённого участника
-        remoteVideo.srcObject = e.streams[0];
-      };
+  peer = new RTCPeerConnection();
+  localStream.getTracks().forEach(t => peer.addTrack(t, localStream));
 
-      pc.onicecandidate = e => {
-        if (e.candidate) socket.emit("webrtc-candidate", e.candidate);
-      };
+  peer.ontrack = e => remoteVideo.srcObject = e.streams[0];
+  peer.onicecandidate = e => {
+    if (e.candidate)
+      socket.emit("call-candidate", { to: callTarget, candidate: e.candidate });
+  };
 
-      return pc;
-    }
+  await peer.setRemoteDescription(new RTCSessionDescription(data.offer));
+  const answer = await peer.createAnswer();
+  await peer.setLocalDescription(answer);
 
-    /* === НАЧАТЬ ВИДЕО === */
-    startVideo.onclick = async () => {
-      try {
-        inCall = true;
+  socket.emit("call-answer", {
+    to: data.from,
+    from: username,
+    answer
+  });
+});
 
-        // Останавливаем звук локально (если был)
-        const snd = document.getElementById("joinSound");
-        snd.pause();
-        snd.currentTime = 0;
+socket.on("call-answer", async data => {
+  await peer.setRemoteDescription(new RTCSessionDescription(data.answer));
+});
 
-        socket.emit("audio-join", username);
+socket.on("call-candidate", async data => {
+  if (peer)
+    await peer.addIceCandidate(new RTCIceCandidate(data.candidate));
+});
 
-        // Запрашиваем камеру/микрофон
-        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        localVideo.srcObject = localStream;
-
-        // создаём RTCPeerConnection с ICE от сервера
-        peerConnection = await createPeerConnection();
-
-        // добавляем локальные дорожки
-        localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-
-        // сохраняем начальный статус кнопок
-        videoEnabled = true;
-        audioEnabled = true;
-        toggleVideo.textContent = "Выключить камеру";
-        toggleAudio.textContent = "Выключить микрофон";
-
-        const offer = await peerConnection.createOffer();
-        await peerConnection.setLocalDescription(offer);
-        socket.emit("webrtc-offer", offer);
-      } catch (err) {
-        console.error("Ошибка при старте видео:", err);
-        alert("Не удалось включить камеру/микрофон: " + err.message);
-      }
-    };
-
-    // При получении оффера — отвечаем (act as callee)
-    socket.on('webrtc-offer', async offer => {
-      try {
-        inCall = true;
-
-        // создаём или обновляем локальный поток
-        if (!localStream) {
-          localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-          localVideo.srcObject = localStream;
-        }
-
-        peerConnection = await createPeerConnection();
-
-        localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-        const answer = await peerConnection.createAnswer();
-        await peerConnection.setLocalDescription(answer);
-        socket.emit("webrtc-answer", answer);
-
-        // Сбрасываем кнопки
-        videoEnabled = true;
-        audioEnabled = true;
-        toggleVideo.textContent = "Выключить камеру";
-        toggleAudio.textContent = "Выключить микрофон";
-      } catch (err) {
-        console.error("Ошибка при приёме оффера:", err);
-      }
-    });
-
-    socket.on("webrtc-answer", async answer => {
-      try {
-        if (peerConnection) {
-          await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
-        }
-      } catch (err) {
-        console.error("Ошибка при установке answer:", err);
-      }
-    });
-
-    socket.on("webrtc-candidate", async candidate => {
-      try {
-        if (peerConnection) {
-          await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-        }
-      } catch (err) {
-        console.error("Ошибка при добавлении кандидата:", err);
-      }
-    });
-
-    /* === Кнопки mute/unmute === */
-    toggleVideo.onclick = () => {
-      if (!localStream) return;
-      videoEnabled = !videoEnabled;
-      localStream.getVideoTracks().forEach(track => track.enabled = videoEnabled);
-      toggleVideo.textContent = videoEnabled ? "Выключить камеру" : "Включить камеру";
-    };
-
-    toggleAudio.onclick = () => {
-      if (!localStream) return;
-      audioEnabled = !audioEnabled;
-      localStream.getAudioTracks().forEach(track => track.enabled = audioEnabled);
-      toggleAudio.textContent = audioEnabled ? "Выключить микрофон" : "Включить микрофон";
-    };
-
-    /* === ОТКЛЮЧИТЬ ВИДЕО === */
-    stopVideo.onclick = () => {
-      inCall = false;
-
-      if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
-        localStream = null;
-      }
-      if (peerConnection) {
-        peerConnection.close();
-        peerConnection = null;
-      }
-      remoteVideo.srcObject = null;
-
-      // вернуть кнопки в начальное состояние
-      videoEnabled = true;
-      audioEnabled = true;
-      toggleVideo.textContent = "Выключить камеру";
-      toggleAudio.textContent = "Выключить микрофон";
-    };
-
-    /* === ПРОИГРЫВАНИЕ ЗВУКА ТОЛЬКО ЕСЛИ ПОЛЬЗОВАТЕЛЬ НЕ В ЗВОНКЕ === */
-    socket.on("audio-join", (name) => {
-      if (!inCall) {
-        const snd = document.getElementById("joinSound");
-        snd.volume = 1;
-        snd.play().catch(() => {});
-      }
-    });
-
-  </script>
+endCall.onclick = () => {
+  videoChat.style.display = "none";
+  if (peer) peer.close();
+  if (localStream) localStream.getTracks().forEach(t => t.stop());
+  peer = null;
+};
+</script>
 </body>
 </html>
+
