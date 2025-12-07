@@ -35,7 +35,10 @@ function logSecurity(message) {
 
 let messages = loadData(messagesFile);
 let users = loadData(usersFile);
+
+// activeUsers set (usernames) and mapping username->socket.id
 let activeUsers = new Set();
+let userSockets = {}; // username -> socket.id
 
 /* === АВТО-УДАЛЕНИЕ СООБЩЕНИЙ === */
 const THREE_HOURS = 3 * 60 * 60 * 1000;
@@ -85,11 +88,9 @@ async function getXirsysServers() {
       res.on("end", () => {
         try {
           const json = JSON.parse(data);
-          // xirsys возвращает структуру, в v.iceServers лежит массив
           if (json && json.v && json.v.iceServers) {
             resolve(json.v.iceServers);
           } else {
-            // на случай неожиданного ответа
             reject(new Error("Unexpected Xirsys response: " + data));
           }
         } catch (err) {
@@ -120,7 +121,6 @@ io.on("connection", (socket) => {
       socket.emit("ice-servers", ice);
     } catch (err) {
       console.log("ICE ERROR:", err);
-      // fallback на публичный STUN
       socket.emit("ice-servers", [{ urls: "stun:stun.l.google.com:19302" }]);
     }
   });
@@ -149,57 +149,100 @@ io.on("connection", (socket) => {
     socket.username = username;
     socket.admin = user.admin;
     activeUsers.add(username);
+    userSockets[username] = socket.id;
 
     deleteOldMessages();
 
-    socket.emit("loginSuccess", { username, admin: user.admin, messages });
+    // Отправляем клиенту только его личные сообщения (from/to === username)
+    const userMessages = messages.filter(m => m.from === username || m.to === username);
+
+    // Отдаем список онлайн-пользователей (без этого пользователя)
+    const others = Array.from(activeUsers).filter(u => u !== username);
+
+    socket.emit("loginSuccess", { username, admin: user.admin, messages: userMessages, online: others });
+
+    // Уведомить остальных о новом онлайне
+    socket.broadcast.emit("active-users", Array.from(activeUsers));
   });
 
+  // приватное текстовое сообщение
   socket.on("chat message", (msg) => {
+    // msg: { from, to, text }
+    if (!msg || !msg.from || !msg.to || !msg.text) return;
     const time = new Date().toLocaleTimeString();
-    const data = { ...msg, time, timestamp: Date.now() };
+    const data = { ...msg, time, timestamp: Date.now(), type: "text" };
     messages.push(data);
     saveData(messagesFile, messages);
-    io.emit("chat message", data);
+
+    // отправляем отправителю (подтверждение) и получателю (если онлайн)
+    socket.emit("private-message", data);
+    const targetId = userSockets[msg.to];
+    if (targetId) io.to(targetId).emit("private-message", data);
   });
 
+  // приватное изображение
   socket.on("chat image", (msg) => {
+    // msg: { from, to, data }
+    if (!msg || !msg.from || !msg.to || !msg.data) return;
     const time = new Date().toLocaleTimeString();
-    const data = { ...msg, time, timestamp: Date.now() };
+    const data = { ...msg, time, timestamp: Date.now(), type: "image" };
     messages.push(data);
     saveData(messagesFile, messages);
-    io.emit("chat image", data);
+
+    socket.emit("private-message", data);
+    const targetId = userSockets[msg.to];
+    if (targetId) io.to(targetId).emit("private-message", data);
   });
 
   socket.on("clear-messages", () => {
     if (!socket.admin) return;
     messages = [];
     saveData(messagesFile, messages);
+    // здесь можно оповестить всех, но т.к. у нас приватные, просто всем отправим событие очистки
     io.emit("chat-cleared");
   });
 
-  /* === WebRTC сигналинг === */
-  socket.on("webrtc-offer", (offer) => {
-    socket.broadcast.emit("webrtc-offer", offer);
+  /* === WebRTC сигналинг (приватно, с полем to) === */
+
+  socket.on("webrtc-offer", (payload) => {
+    // payload: { from, to, offer }
+    if (!payload || !payload.to) return;
+    const target = userSockets[payload.to];
+    if (target) io.to(target).emit("webrtc-offer", payload);
   });
 
-  socket.on("webrtc-answer", (answer) => {
-    socket.broadcast.emit("webrtc-answer", answer);
+  socket.on("webrtc-answer", (payload) => {
+    // payload: { from, to, answer }
+    if (!payload || !payload.to) return;
+    const target = userSockets[payload.to];
+    if (target) io.to(target).emit("webrtc-answer", payload);
   });
 
-  socket.on("webrtc-candidate", (candidate) => {
-    socket.broadcast.emit("webrtc-candidate", candidate);
+  socket.on("webrtc-candidate", (payload) => {
+    // payload: { from, to, candidate }
+    if (!payload || !payload.to) return;
+    const target = userSockets[payload.to];
+    if (target) io.to(target).emit("webrtc-candidate", payload);
   });
 
-  /* === 🔊 УВЕДОМЛЕНИЕ О ВХОДЕ В ВИДЕОЧАТ === */
-  socket.on("audio-join", (username) => {
-    socket.broadcast.emit("audio-join", username);
+  /* === 🔊 УВЕДОМЛЕНИЕ О ВХОДЕ В ВИДЕОЧАТ (только конкретному пользователю) === */
+  socket.on("audio-join", ({ from, to }) => {
+    if (!to) return;
+    const target = userSockets[to];
+    if (target) io.to(target).emit("audio-join", { from });
+  });
+
+  /* === Запрос списка активных пользователей (по требованию) === */
+  socket.on("get-active", () => {
+    socket.emit("active-users", Array.from(activeUsers));
   });
 
   socket.on("disconnect", () => {
     if (socket.username) {
       activeUsers.delete(socket.username);
+      delete userSockets[socket.username];
       logSecurity(`${socket.username} отключился`);
+      socket.broadcast.emit("active-users", Array.from(activeUsers));
     }
   });
 });
@@ -207,3 +250,4 @@ io.on("connection", (socket) => {
 server.listen(3000, () =>
   console.log("🚀 Сервер запущен http://localhost:3000")
 );
+
