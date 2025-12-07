@@ -1,10 +1,9 @@
- 
 <!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta charset="UTF-8" />
-  <title>Danikschat</title>
+  <title>Danikschat (приватные чаты)</title>
   <style>
     body {
       font-family: sans-serif;
@@ -20,7 +19,7 @@
       border-radius: 12px;
       box-shadow: 0 0 10px rgba(0,0,0,0.3);
       width: 90%;
-      max-width: 420px;
+      max-width: 520px;
       display: none;
       flex-direction: column;
       margin: 20px auto;
@@ -30,12 +29,13 @@
       display: flex;
     }
 
-    input, button {
+    input, button, select {
       margin: 5px 0;
       padding: 10px;
       border: none;
       border-radius: 6px;
       width: 100%;
+      box-sizing: border-box;
     }
 
     button {
@@ -73,7 +73,7 @@
     #emojiPicker { margin-top: 10px; display: flex; gap: 6px; }
     #emojiPicker button { cursor: pointer; padding: 6px 10px; font-size: 18px; }
 
-    /* Видеочат стиль (не ломаем остальной UI, но улучшаем видеочат) */
+    /* Видеочат стиль */
     #videoChat {
       margin-top: 20px;
       background:#36393f;
@@ -81,7 +81,7 @@
       border-radius: 12px;
       display: none;
       flex-direction: column;
-      max-width: 420px;
+      max-width: 520px;
       width: 90%;
       margin-left: auto;
       margin-right: auto;
@@ -131,6 +131,13 @@
   <!-- Чат -->
   <div id="chat">
     <h2 id="welcome"></h2>
+
+    <!-- Выбор собеседника -->
+    <label for="userSelect">Собеседник (онлайн):</label>
+    <select id="userSelect">
+      <option value="">-- выберите пользователя --</option>
+    </select>
+
     <ul id="messages"></ul>
     <input id="input" placeholder="Введите сообщение..." />
     <button id="send">Отправить</button>
@@ -149,7 +156,7 @@
 
   <!-- ВИДЕОЧАТ -->
   <div id="videoChat">
-    <h3>Видеочат</h3>
+    <h3>Видеочат (приватно)</h3>
 
     <video id="localVideo" autoplay playsinline muted style="width:100%; border-radius:10px; background:black;"></video>
     <video id="remoteVideo" autoplay playsinline style="width:100%; margin-top:10px; border-radius:10px; background:black;"></video>
@@ -167,7 +174,6 @@
   <script>
     const socket = io();
 
-    /* === ВАЖНО: теперь есть статус видеозвонка === */
     let inCall = false;
 
     const authDiv = document.getElementById('auth');
@@ -181,6 +187,7 @@
     const messages = document.getElementById('messages');
     const imageInput = document.getElementById("imageInput");
     const emojiButtons = document.querySelectorAll(".emoji");
+    const userSelect = document.getElementById("userSelect");
 
     let username = null;
     let admin = false;
@@ -204,52 +211,91 @@
       authDiv.classList.remove('active');
       chatDiv.classList.add('active');
       welcome.textContent = `Привет, ${username}!`;
+
+      // Показать прошлые личные сообщения
       data.messages.forEach(addMessage);
+
+      // заполнить список онлайн-пользователей
+      populateUsers(data.online || []);
     });
+
+    // Список активных пользователей от сервера
+    socket.on('active-users', (list) => {
+      // список всех онлайн — обновляем селект
+      populateUsers(list.filter(u => u !== username));
+    });
+
+    function populateUsers(list) {
+      // сохраняем выбранное
+      const prev = userSelect.value;
+      userSelect.innerHTML = '<option value="">-- выберите пользователя --</option>';
+      list.forEach(u => {
+        const opt = document.createElement('option');
+        opt.value = u;
+        opt.textContent = u;
+        userSelect.appendChild(opt);
+      });
+      // попытка восстановить выбор
+      if (prev && Array.from(userSelect.options).some(o => o.value === prev)) userSelect.value = prev;
+    }
 
     send.onclick = () => {
       const text = input.value.trim();
+      const to = userSelect.value;
+      if (!to) return alert("Выберите получателя в списке.");
       if (text) {
-        socket.emit('chat message', { username, text });
+        const msg = { from: username, to, text };
+        socket.emit('chat message', msg);
         input.value = '';
       }
     };
 
     function addMessage(msg) {
-      const li = document.createElement('li');
-      if (msg.username === username) li.classList.add('my-message');
+      // msg: { from, to, text|data, time, type }
+      // показываем только сообщения, где вы участник (сервер уже фильтрует при логине, но и приходящие — тоже)
+      if (!(msg.from === username || msg.to === username)) return;
 
-      if (msg.text) {
-        li.innerHTML = `<div class="message-username">${msg.username}</div><div>${msg.text}</div><div class="message-time">${msg.time}</div>`;
-      } else if (msg.data) {
-        li.innerHTML = `<div class="message-username">${msg.username}</div><img src="${msg.data}" style="max-width:200px; border-radius:8px; margin-top:4px;"><div class="message-time">${msg.time}</div>`;
+      const li = document.createElement('li');
+      if (msg.from === username) li.classList.add('my-message');
+
+      const peer = msg.from === username ? msg.to : msg.from;
+      const title = `${peer} (${msg.from === username ? 'я → ' + msg.to : msg.from})`;
+
+      if (msg.type === 'text') {
+        li.innerHTML = `<div class="message-username">${title}</div><div>${escapeHtml(msg.text)}</div><div class="message-time">${msg.time}</div>`;
+      } else if (msg.type === 'image') {
+        li.innerHTML = `<div class="message-username">${title}</div><img src="${msg.data}" style="max-width:200px; border-radius:8px; margin-top:4px;"><div class="message-time">${msg.time}</div>`;
       }
 
       messages.appendChild(li);
       messages.scrollTop = messages.scrollHeight;
     }
 
-    socket.on('chat message', addMessage);
-    socket.on('chat image', addMessage);
+    socket.on('private-message', addMessage);
+    socket.on('chat-cleared', () => messages.innerHTML = '');
 
     emojiButtons.forEach(btn => {
       btn.onclick = () => {
-        socket.emit("chat message", { username, text: btn.textContent });
+        const to = userSelect.value;
+        if (!to) return alert("Выберите получателя в списке.");
+        socket.emit("chat message", { from: username, to, text: btn.textContent });
       };
     });
 
     imageInput.onchange = () => {
       const file = imageInput.files[0];
       if (!file) return;
+      const to = userSelect.value;
+      if (!to) return alert("Выберите получателя в списке.");
       const reader = new FileReader();
       reader.onload = () => {
-        socket.emit("chat image", { username, data: reader.result });
+        socket.emit("chat image", { from: username, to, data: reader.result });
       };
       reader.readAsDataURL(file);
       imageInput.value = "";
     };
 
-    /* === ВИДЕОЧАТ === */
+    /* === ВИДЕОЧАТ (приватный) === */
 
     const videoChat = document.getElementById("videoChat");
     const openVideoChat = document.getElementById("openVideoChat");
@@ -265,7 +311,7 @@
     let localStream = null;
     let peerConnection = null;
 
-    // Переменные для управления mute
+    let iceServers = null;
     let videoEnabled = true;
     let audioEnabled = true;
 
@@ -273,10 +319,7 @@
       videoChat.style.display = "flex";
     };
 
-    /* === Функции: получение ICE от сервера и создание RTCPeerConnection === */
-    let iceServers = null;
-
-    async function createPeerConnection() {
+    async function createPeerConnection(remoteUsername) {
       if (!iceServers) {
         socket.emit("request-ice");
         iceServers = await new Promise(resolve =>
@@ -287,40 +330,43 @@
       const pc = new RTCPeerConnection({ iceServers });
 
       pc.ontrack = e => {
-        // показываем поток удалённого участника
         remoteVideo.srcObject = e.streams[0];
       };
 
       pc.onicecandidate = e => {
-        if (e.candidate) socket.emit("webrtc-candidate", e.candidate);
+        if (e.candidate) {
+          socket.emit("webrtc-candidate", { from: username, to: remoteUsername, candidate: e.candidate });
+        }
       };
 
       return pc;
     }
 
-    /* === НАЧАТЬ ВИДЕО === */
+    /* === НАЧАТЬ ВИДЕО (как звонящий) === */
     startVideo.onclick = async () => {
+      const to = userSelect.value;
+      if (!to) return alert("Выберите получателя в списке для приватного вызова.");
+
       try {
         inCall = true;
 
-        // Останавливаем звук локально (если был)
+        // остановить звук локально (если был)
         const snd = document.getElementById("joinSound");
         snd.pause();
         snd.currentTime = 0;
 
-        socket.emit("audio-join", username);
+        // уведомляем того, кому звонят, чтобы проигрался звук
+        socket.emit("audio-join", { from: username, to });
 
-        // Запрашиваем камеру/микрофон
+        // запрос камеры/микрофона
         localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
         localVideo.srcObject = localStream;
 
-        // создаём RTCPeerConnection с ICE от сервера
-        peerConnection = await createPeerConnection();
+        peerConnection = await createPeerConnection(to);
 
-        // добавляем локальные дорожки
         localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
-        // сохраняем начальный статус кнопок
+        // кнопки
         videoEnabled = true;
         audioEnabled = true;
         toggleVideo.textContent = "Выключить камеру";
@@ -328,57 +374,67 @@
 
         const offer = await peerConnection.createOffer();
         await peerConnection.setLocalDescription(offer);
-        socket.emit("webrtc-offer", offer);
+        socket.emit("webrtc-offer", { from: username, to, offer });
       } catch (err) {
         console.error("Ошибка при старте видео:", err);
-        alert("Не удалось включить камеру/микрофон: " + err.message);
+        alert("Не удалось включить камеру/микрофон: " + (err.message || err));
       }
     };
 
-    // При получении оффера — отвечаем (act as callee)
-    socket.on('webrtc-offer', async offer => {
+    // При получении оффера — отвечаем (callee)
+    socket.on('webrtc-offer', async (payload) => {
+      // payload: { from, to, offer }
       try {
+        if (payload.to !== username) return; // не для нас
+
         inCall = true;
 
-        // создаём или обновляем локальный поток
+        // создаём/обновляем локальный поток
         if (!localStream) {
           localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
           localVideo.srcObject = localStream;
         }
 
-        peerConnection = await createPeerConnection();
+        peerConnection = await createPeerConnection(payload.from);
 
         localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.offer));
         const answer = await peerConnection.createAnswer();
         await peerConnection.setLocalDescription(answer);
-        socket.emit("webrtc-answer", answer);
+        socket.emit("webrtc-answer", { from: username, to: payload.from, answer });
 
-        // Сбрасываем кнопки
+        // сброс кнопок
         videoEnabled = true;
         audioEnabled = true;
         toggleVideo.textContent = "Выключить камеру";
         toggleAudio.textContent = "Выключить микрофон";
+
+        // показать видеочат (если скрыт)
+        videoChat.style.display = "flex";
       } catch (err) {
         console.error("Ошибка при приёме оффера:", err);
       }
     });
 
-    socket.on("webrtc-answer", async answer => {
+    socket.on("webrtc-answer", async (payload) => {
+      // payload: { from, to, answer }
       try {
+        if (payload.to !== username) return;
         if (peerConnection) {
-          await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+          await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.answer));
         }
       } catch (err) {
         console.error("Ошибка при установке answer:", err);
       }
     });
 
-    socket.on("webrtc-candidate", async candidate => {
+    socket.on("webrtc-candidate", async (payload) => {
+      // payload: { from, to, candidate }
       try {
+        if (payload.to !== username) return;
         if (peerConnection) {
-          await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+          await peerConnection.addIceCandidate(new RTCIceCandidate(payload.candidate));
         }
       } catch (err) {
         console.error("Ошибка при добавлении кандидата:", err);
@@ -414,7 +470,6 @@
       }
       remoteVideo.srcObject = null;
 
-      // вернуть кнопки в начальное состояние
       videoEnabled = true;
       audioEnabled = true;
       toggleVideo.textContent = "Выключить камеру";
@@ -422,13 +477,25 @@
     };
 
     /* === ПРОИГРЫВАНИЕ ЗВУКА ТОЛЬКО ЕСЛИ ПОЛЬЗОВАТЕЛЬ НЕ В ЗВОНКЕ === */
-    socket.on("audio-join", (name) => {
+    socket.on("audio-join", ({ from }) => {
+      // звук проигрывается только если мы не в звонке
       if (!inCall) {
         const snd = document.getElementById("joinSound");
         snd.volume = 1;
         snd.play().catch(() => {});
       }
     });
+
+    /* === HELPERS === */
+    function escapeHtml(unsafe) {
+      return unsafe
+        .replace(/[&<"']/g, function(m) {
+          return ({ '&': '&amp;', '<': '&lt;', '"': '&quot;', "'": '&#039;' })[m];
+        });
+    }
+
+    // При заходе на страницу запросим актуальный список онлайн
+    socket.emit("get-active");
 
   </script>
 </body>
