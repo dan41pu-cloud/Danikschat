@@ -1,253 +1,173 @@
-// server.js
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
 const fs = require("fs");
 const path = require("path");
-const https = require("https"); // для запроса к Xirsys
+const https = require("https");
 
 const app = express();
 const server = http.createServer(app);
+
 const io = new Server(server, {
   cors: { origin: "*", methods: ["GET", "POST"] }
 });
 
 app.use(express.static(__dirname));
 
-const messagesFile = path.join(__dirname, "messages.json");
 const usersFile = path.join(__dirname, "users.json");
-const securityLogFile = path.join(__dirname, "security.log");
+const messagesFile = path.join(__dirname, "messages.json");
 
-function loadData(file, defaultValue = []) {
-  if (fs.existsSync(file)) return JSON.parse(fs.readFileSync(file, "utf8"));
-  fs.writeFileSync(file, JSON.stringify(defaultValue, null, 2));
-  return defaultValue;
+function load(file, def = []) {
+  if (!fs.existsSync(file)) fs.writeFileSync(file, JSON.stringify(def));
+  return JSON.parse(fs.readFileSync(file, "utf8"));
 }
 
-function saveData(file, data) {
-  fs.writeFileSync(file, JSON.stringify(data, null, 2), "utf8");
+function save(file, data) {
+  fs.writeFileSync(file, JSON.stringify(data, null, 2));
 }
 
-function logSecurity(message) {
-  const time = new Date().toISOString();
-  fs.appendFile(securityLogFile, `[${time}] ${message}\n`, () => {});
-}
+let users = load(usersFile);
+let messages = load(messagesFile);
 
-let messages = loadData(messagesFile);
-let users = loadData(usersFile);
+const sockets = {}; // username → socket
 
-// activeUsers set (usernames) and mapping username->socket.id
-let activeUsers = new Set();
-let userSockets = {}; // username -> socket.id
+/* === XIRSYS ICE === */
 
-/* === АВТО-УДАЛЕНИЕ СООБЩЕНИЙ === */
-const THREE_HOURS = 3 * 60 * 60 * 1000;
+const XIRSYS_USER = "daniil";
+const XIRSYS_TOKEN = "787333b8-cedf-11f0-bad6-0242ac130003";
+const XIRSYS_PATH = "/_turn/MyFirstApp";
 
-function deleteOldMessages() {
-  const now = Date.now();
-  const filtered = messages.filter(m => !m.timestamp || now - m.timestamp < THREE_HOURS);
-
-  if (filtered.length !== messages.length) {
-    messages = filtered;
-    saveData(messagesFile, messages);
-  }
-}
-
-setInterval(deleteOldMessages, 10 * 60 * 1000);
-deleteOldMessages();
-
-/* =======================
-   XIRSYS: получение ICE
-   ======================= */
-
-// Заменить user:token, если нужно поставить другие
-const XIRSYS_AUTH_USER = "daniil";
-const XIRSYS_AUTH_TOKEN = "787333b8-cedf-11f0-bad6-0242ac130003";
-const XIRSYS_APP_PATH = "/_turn/MyFirstApp";
-
-async function getXirsysServers() {
+function getXirsys() {
   return new Promise((resolve, reject) => {
     const body = JSON.stringify({ format: "ice" });
 
-    const options = {
+    const req = https.request({
       host: "global.xirsys.net",
-      path: XIRSYS_APP_PATH,
+      path: XIRSYS_PATH,
       method: "PUT",
       headers: {
         "Authorization":
-          "Basic " + Buffer.from(`${XIRSYS_AUTH_USER}:${XIRSYS_AUTH_TOKEN}`).toString("base64"),
+          "Basic " + Buffer.from(`${XIRSYS_USER}:${XIRSYS_TOKEN}`).toString("base64"),
         "Content-Type": "application/json",
-        "Content-Length": Buffer.byteLength(body),
-      },
-      timeout: 10000
-    };
-
-    const req = https.request(options, (res) => {
+        "Content-Length": body.length
+      }
+    }, res => {
       let data = "";
-      res.on("data", (chunk) => (data += chunk));
+      res.on("data", chunk => data += chunk);
       res.on("end", () => {
         try {
           const json = JSON.parse(data);
-          if (json && json.v && json.v.iceServers) {
-            resolve(json.v.iceServers);
-          } else {
-            reject(new Error("Unexpected Xirsys response: " + data));
-          }
-        } catch (err) {
-          reject(err);
+          resolve(json.v.iceServers);
+        } catch {
+          resolve([{ urls: "stun:stun.l.google.com:19302" }]);
         }
       });
     });
 
-    req.on("error", (err) => reject(err));
-    req.on("timeout", () => {
-      req.destroy();
-      reject(new Error("Xirsys request timed out"));
-    });
-
+    req.on("error", () => resolve([{ urls: "stun:stun.l.google.com:19302" }]));
     req.write(body);
     req.end();
   });
 }
 
-/* ====== Socket.IO ====== */
+/* ============= SOCKET.IO =============== */
 
-io.on("connection", (socket) => {
-
-  // Клиент запросил список ICE серверов
+io.on("connection", socket => {
+  
+  // ICE
   socket.on("request-ice", async () => {
-    try {
-      const ice = await getXirsysServers();
-      socket.emit("ice-servers", ice);
-    } catch (err) {
-      console.log("ICE ERROR:", err);
-      socket.emit("ice-servers", [{ urls: "stun:stun.l.google.com:19302" }]);
-    }
+    const ice = await getXirsys();
+    socket.emit("ice-servers", ice);
   });
 
+  /* === Регистрация === */
   socket.on("register", ({ username, password }) => {
-    if (!username || !password) return socket.emit("registerError", "Введите имя и пароль");
-    if (users.find(u => u.username.toLowerCase() === username.toLowerCase()))
-      return socket.emit("registerError", "Имя уже занято");
+    if (!username || !password) {
+      socket.emit("registerError", "Введите имя и пароль");
+      return;
+    }
 
-    const isFirstUser = users.length === 0;
-    users.push({ username, password, admin: isFirstUser });
-    saveData(usersFile, users);
-    socket.emit("registerSuccess", "Регистрация успешна!");
+    if (users.find(u => u.username === username)) {
+      socket.emit("registerError", "Имя занято");
+      return;
+    }
+
+    const admin = users.length === 0;
+    users.push({ username, password, admin });
+    save(usersFile, users);
+
+    socket.emit("registerSuccess", "Регистрация успешна");
   });
 
+  /* === Логин === */
   socket.on("login", ({ username, password }) => {
     const user = users.find(u => u.username === username && u.password === password);
-    if (!user) return socket.emit("loginError", "Неверное имя или пароль");
 
-    if (activeUsers.has(username)) {
-      socket.emit("loginError", "Этот пользователь уже онлайн!");
-      logSecurity(`Двойной вход: ${username}`);
+    if (!user) {
+      socket.emit("loginError", "Неверное имя или пароль");
       return;
     }
 
     socket.username = username;
     socket.admin = user.admin;
-    activeUsers.add(username);
-    userSockets[username] = socket.id;
 
-    deleteOldMessages();
+    sockets[username] = socket;
 
-    // Отправляем клиенту только его личные сообщения (from/to === username)
-    const userMessages = messages.filter(m => m.from === username || m.to === username);
-
-    // Отдаем список онлайн-пользователей (без этого пользователя)
-    const others = Array.from(activeUsers).filter(u => u !== username);
-
-    socket.emit("loginSuccess", { username, admin: user.admin, messages: userMessages, online: others });
-
-    // Уведомить остальных о новом онлайне
-    socket.broadcast.emit("active-users", Array.from(activeUsers));
+    socket.emit("loginSuccess", {
+      username,
+      admin: user.admin,
+      users: users.map(u => u.username),
+      messages
+    });
   });
 
-  // приватное текстовое сообщение
-  socket.on("chat message", (msg) => {
-    // msg: { from, to, text }
-    if (!msg || !msg.from || !msg.to || !msg.text) return;
-    const time = new Date().toLocaleTimeString();
-    const data = { ...msg, time, timestamp: Date.now(), type: "text" };
-    messages.push(data);
-    saveData(messagesFile, messages);
-
-    // отправляем отправителю (подтверждение) и получателю (если онлайн)
-    socket.emit("private-message", data);
-    const targetId = userSockets[msg.to];
-    if (targetId) io.to(targetId).emit("private-message", data);
+  /* === Приватный чат === */
+  socket.on("chat-private", msg => {
+    const { to } = msg;
+    if (sockets[to]) sockets[to].emit("chat-private", msg);
   });
 
-  // приватное изображение
-  socket.on("chat image", (msg) => {
-    // msg: { from, to, data }
-    if (!msg || !msg.from || !msg.to || !msg.data) return;
-    const time = new Date().toLocaleTimeString();
-    const data = { ...msg, time, timestamp: Date.now(), type: "image" };
-    messages.push(data);
-    saveData(messagesFile, messages);
-
-    socket.emit("private-message", data);
-    const targetId = userSockets[msg.to];
-    if (targetId) io.to(targetId).emit("private-message", data);
+  /* === Личный видеозвонок === */
+  socket.on("call-user", ({ target }) => {
+    if (sockets[target]) {
+      sockets[target].emit("incoming-call", {
+        from: socket.username
+      });
+    }
   });
 
-  socket.on("clear-messages", () => {
-    if (!socket.admin) return;
-    messages = [];
-    saveData(messagesFile, messages);
-    // здесь можно оповестить всех, но т.к. у нас приватные, просто всем отправим событие очистки
-    io.emit("chat-cleared");
+  socket.on("webrtc-offer", ({ target, offer }) => {
+    if (sockets[target]) {
+      sockets[target].emit("webrtc-offer", {
+        from: socket.username,
+        offer
+      });
+    }
   });
 
-  /* === WebRTC сигналинг (приватно, с полем to) === */
-
-  socket.on("webrtc-offer", (payload) => {
-    // payload: { from, to, offer }
-    if (!payload || !payload.to) return;
-    const target = userSockets[payload.to];
-    if (target) io.to(target).emit("webrtc-offer", payload);
+  socket.on("webrtc-answer", ({ target, answer }) => {
+    if (sockets[target]) {
+      sockets[target].emit("webrtc-answer", {
+        from: socket.username,
+        answer
+      });
+    }
   });
 
-  socket.on("webrtc-answer", (payload) => {
-    // payload: { from, to, answer }
-    if (!payload || !payload.to) return;
-    const target = userSockets[payload.to];
-    if (target) io.to(target).emit("webrtc-answer", payload);
-  });
-
-  socket.on("webrtc-candidate", (payload) => {
-    // payload: { from, to, candidate }
-    if (!payload || !payload.to) return;
-    const target = userSockets[payload.to];
-    if (target) io.to(target).emit("webrtc-candidate", payload);
-  });
-
-  /* === 🔊 УВЕДОМЛЕНИЕ О ВХОДЕ В ВИДЕОЧАТ (только конкретному пользователю) === */
-  socket.on("audio-join", ({ from, to }) => {
-    if (!to) return;
-    const target = userSockets[to];
-    if (target) io.to(target).emit("audio-join", { from });
-  });
-
-  /* === Запрос списка активных пользователей (по требованию) === */
-  socket.on("get-active", () => {
-    socket.emit("active-users", Array.from(activeUsers));
+  socket.on("webrtc-candidate", ({ target, candidate }) => {
+    if (sockets[target]) {
+      sockets[target].emit("webrtc-candidate", {
+        from: socket.username,
+        candidate
+      });
+    }
   });
 
   socket.on("disconnect", () => {
-    if (socket.username) {
-      activeUsers.delete(socket.username);
-      delete userSockets[socket.username];
-      logSecurity(`${socket.username} отключился`);
-      socket.broadcast.emit("active-users", Array.from(activeUsers));
-    }
+    if (socket.username) delete sockets[socket.username];
   });
 });
 
-server.listen(3000, () =>
-  console.log("🚀 Сервер запущен http://localhost:3000")
-);
-
+server.listen(3000, () => {
+  console.log("Server running http://localhost:3000");
+});
