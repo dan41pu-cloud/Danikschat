@@ -1,4 +1,3 @@
-const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
 const fs = require("fs");
@@ -18,9 +17,10 @@ const usersFile = path.join(__dirname, "users.json");
 const messagesFile = path.join(__dirname, "messages.json");
 
 function load(file, def = []) {
-  if (!fs.existsSync(file)) fs.writeFileSync(file, JSON.stringify(def, null, 2));
+  if (!fs.existsSync(file)) fs.writeFileSync(file, JSON.stringify(def));
   return JSON.parse(fs.readFileSync(file, "utf8"));
 }
+
 function save(file, data) {
   fs.writeFileSync(file, JSON.stringify(data, null, 2));
 }
@@ -30,14 +30,14 @@ let messages = load(messagesFile);
 
 const sockets = {}; // username → socket
 
-/* ===== XIRSYS ICE ===== */
+/* === XIRSYS ICE === */
 
 const XIRSYS_USER = "daniil";
 const XIRSYS_TOKEN = "787333b8-cedf-11f0-bad6-0242ac130003";
 const XIRSYS_PATH = "/_turn/MyFirstApp";
 
 function getXirsys() {
-  return new Promise(resolve => {
+  return new Promise((resolve, reject) => {
     const body = JSON.stringify({ format: "ice" });
 
     const req = https.request({
@@ -52,10 +52,11 @@ function getXirsys() {
       }
     }, res => {
       let data = "";
-      res.on("data", c => data += c);
+      res.on("data", chunk => data += chunk);
       res.on("end", () => {
         try {
-          resolve(JSON.parse(data).v.iceServers);
+          const json = JSON.parse(data);
+          resolve(json.v.iceServers);
         } catch {
           resolve([{ urls: "stun:stun.l.google.com:19302" }]);
         }
@@ -68,21 +69,27 @@ function getXirsys() {
   });
 }
 
-/* ===== SOCKET.IO ===== */
+/* ============= SOCKET.IO =============== */
 
 io.on("connection", socket => {
-
+  
+  // ICE
   socket.on("request-ice", async () => {
-    socket.emit("ice-servers", await getXirsys());
+    const ice = await getXirsys();
+    socket.emit("ice-servers", ice);
   });
 
-  /* === REGISTRATION === */
+  /* === Регистрация === */
   socket.on("register", ({ username, password }) => {
-    if (!username || !password)
-      return socket.emit("registerError", "Введите имя и пароль");
+    if (!username || !password) {
+      socket.emit("registerError", "Введите имя и пароль");
+      return;
+    }
 
-    if (users.find(u => u.username === username))
-      return socket.emit("registerError", "Имя занято");
+    if (users.find(u => u.username === username)) {
+      socket.emit("registerError", "Имя занято");
+      return;
+    }
 
     const admin = users.length === 0;
     users.push({ username, password, admin });
@@ -91,51 +98,35 @@ io.on("connection", socket => {
     socket.emit("registerSuccess", "Регистрация успешна");
   });
 
-  /* === LOGIN === */
+  /* === Логин === */
   socket.on("login", ({ username, password }) => {
-    const user = users.find(
-      u => u.username === username && u.password === password
-    );
+    const user = users.find(u => u.username === username && u.password === password);
 
-    if (!user)
-      return socket.emit("loginError", "Неверное имя или пароль");
+    if (!user) {
+      socket.emit("loginError", "Неверное имя или пароль");
+      return;
+    }
 
     socket.username = username;
     socket.admin = user.admin;
+
     sockets[username] = socket;
 
     socket.emit("loginSuccess", {
       username,
       admin: user.admin,
-      users: users.map(u => u.username), // ВСЕ зарегистрированные
-      messages: messages.filter(
-        m => m.from === username || m.to === username
-      )
+      users: users.map(u => u.username),
+      messages
     });
   });
 
-  /* === ВСЕ ЗАРЕГИСТРИРОВАННЫЕ ПОЛЬЗОВАТЕЛИ === */
-  socket.on("get-all-users", () => {
-    socket.emit("all-users", users.map(u => u.username));
-  });
-
-  /* === PRIVATE CHAT (ONLINE + OFFLINE) === */
+  /* === Приватный чат === */
   socket.on("chat-private", msg => {
-    const message = {
-      ...msg,
-      type: "text",
-      time: new Date().toLocaleString()
-    };
-
-    messages.push(message);
-    save(messagesFile, messages);
-
-    if (sockets[msg.to]) {
-      sockets[msg.to].emit("private-message", message);
-    }
+    const { to } = msg;
+    if (sockets[to]) sockets[to].emit("chat-private", msg);
   });
 
-  /* === VIDEO CALL === */
+  /* === Личный видеозвонок === */
   socket.on("call-user", ({ target }) => {
     if (sockets[target]) {
       sockets[target].emit("incoming-call", {
@@ -179,3 +170,4 @@ io.on("connection", socket => {
 server.listen(3000, () => {
   console.log("Server running http://localhost:3000");
 });
+
