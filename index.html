@@ -1,116 +1,217 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta charset="UTF-8">
-<title>Danikschat</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <title>Danikschat (приватные чаты)</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #2f3136;
+      color: white;
+      margin: 0;
+      padding: 20px;
+    }
 
-<style>
-body {
-  font-family: sans-serif;
-  background: #2f3136;
-  color: white;
-  padding: 20px;
-}
-#auth, #chat {
-  background: #36393f;
-  padding: 20px;
-  border-radius: 12px;
-  max-width: 500px;
-  margin: auto;
-}
-#chat { display: none; }
-input, button, select {
-  width: 100%;
-  margin: 5px 0;
-  padding: 10px;
-  border-radius: 6px;
-  border: none;
-}
-button { background:#5865f2; color:white; cursor:pointer; }
-ul { list-style:none; padding:0; max-height:300px; overflow-y:auto; }
-li {
-  background:#40444b;
-  margin:6px 0;
-  padding:10px;
-  border-radius:8px;
-}
-.my { background:#7289da; text-align:right; }
-</style>
+    #auth, #chat {
+      background: #36393f;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.3);
+      width: 90%;
+      max-width: 520px;
+      display: none;
+      flex-direction: column;
+      margin: 20px auto;
+    }
+
+    #auth.active, #chat.active {
+      display: flex;
+    }
+
+    input, button, select {
+      margin: 5px 0;
+      padding: 10px;
+      border: none;
+      border-radius: 6px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    button {
+      background: #5865f2;
+      color: white;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #4752c4;
+    }
+
+    ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      flex-grow: 1;
+      overflow-y: auto;
+      max-height: 300px;
+    }
+
+    li {
+      margin: 8px 0;
+      padding: 10px;
+      border-radius: 10px;
+      background: #40444b;
+      width: fit-content;
+      max-width: 70%;
+    }
+
+    .my-message { background: #7289da; margin-left: auto; }
+    .message-username { font-weight: bold; margin-bottom: 4px; }
+    .message-time { font-size: 10px; text-align: right; color: gray; }
+
+    #emojiPicker { margin-top: 10px; display: flex; gap: 6px; }
+    #emojiPicker button { cursor: pointer; padding: 6px 10px; font-size: 18px; }
+
+    #videoChat {
+      margin-top: 20px;
+      background:#36393f;
+      padding: 15px;
+      border-radius: 12px;
+      display: none;
+      flex-direction: column;
+      max-width: 520px;
+      width: 90%;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    #videoChat .controls {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+
+    .vc-btn {
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      background: #5865f2;
+      color: white;
+      min-width: 120px;
+    }
+    .vc-btn:hover { background: #4752c4; }
+
+    .vc-btn.danger { background: #f04747; }
+    .vc-btn.secondary { background: #4a4f55; }
+
+    video { background: black; border-radius: 8px; }
+    #localVideo { height: 240px; object-fit: cover; }
+    #remoteVideo { height: 240px; object-fit: cover; margin-top: 10px; }
+  </style>
 </head>
-
 <body>
 
-<div id="auth">
-  <h2>Вход / Регистрация</h2>
-  <input id="username" placeholder="Имя">
-  <input id="password" type="password" placeholder="Пароль">
+<audio id="joinSound" src="join.mp3"></audio>
+
+<div id="auth" class="active">
+  <h2>Вход или регистрация</h2>
+  <input id="username" placeholder="Имя пользователя" />
+  <input id="password" type="password" placeholder="Пароль" />
   <button id="login">Войти</button>
-  <button id="register">Регистрация</button>
+  <button id="register">Зарегистрироваться</button>
   <p id="authMsg"></p>
 </div>
 
 <div id="chat">
-  <h3 id="welcome"></h3>
+  <h2 id="welcome"></h2>
 
-  <select id="userSelect"></select>
+  <label>Собеседник (ВСЕ зарегистрированные):</label>
+  <select id="userSelect">
+    <option value="">-- выберите пользователя --</option>
+  </select>
 
-  <label>
-    <input type="checkbox" id="selectAll">
-    Написать всем
+  <!-- 🔥 ДОБАВЛЕНО -->
+  <label style="margin-top:10px;">
+    <input type="checkbox" id="selectAllUsers">
+    Написать всем зарегистрированным
   </label>
 
   <ul id="messages"></ul>
 
-  <input id="text" placeholder="Сообщение">
+  <input id="input" placeholder="Введите сообщение..." />
   <button id="send">Отправить</button>
+
+  <input type="file" id="imageInput" accept="image/*" />
+
+  <div id="emojiPicker">
+    <button class="emoji">😀</button>
+    <button class="emoji">😂</button>
+    <button class="emoji">😍</button>
+    <button class="emoji">😎</button>
+    <button class="emoji">👍</button>
+  </div>
+
+  <button id="openVideoChat">Видеочат</button>
+</div>
+
+<div id="videoChat">
+  <h3>Видеочат (приватно)</h3>
+  <video id="localVideo" autoplay playsinline muted></video>
+  <video id="remoteVideo" autoplay playsinline></video>
+
+  <div class="controls">
+    <button id="startVideo" class="vc-btn">Начать видеозвонок</button>
+    <button id="stopVideo" class="vc-btn danger">Отключить</button>
+    <button id="toggleVideo" class="vc-btn secondary">Выключить камеру</button>
+    <button id="toggleAudio" class="vc-btn secondary">Выключить микрофон</button>
+  </div>
 </div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
 const socket = io();
 
-const auth = document.getElementById("auth");
-const chat = document.getElementById("chat");
-const msgBox = document.getElementById("messages");
-
-let username = "";
+let username = null;
 let allUsers = [];
 
+const authDiv = document.getElementById('auth');
+const chatDiv = document.getElementById('chat');
+const userSelect = document.getElementById("userSelect");
+const selectAllUsers = document.getElementById("selectAllUsers");
+const input = document.getElementById("input");
+const messages = document.getElementById("messages");
+
 login.onclick = () => {
-  socket.emit("login", {
-    username: username.value,
-    password: password.value
+  socket.emit('login', {
+    username: usernameInput.value.trim(),
+    password: passwordInput.value.trim()
   });
 };
 
 register.onclick = () => {
-  socket.emit("register", {
-    username: username.value,
-    password: password.value
+  socket.emit('register', {
+    username: usernameInput.value.trim(),
+    password: passwordInput.value.trim()
   });
 };
 
-socket.on("loginSuccess", data => {
+socket.on('loginSuccess', data => {
   username = data.username;
-  auth.style.display = "none";
-  chat.style.display = "block";
-  welcome.textContent = "Привет, " + username;
+  authDiv.classList.remove('active');
+  chatDiv.classList.add('active');
+  welcome.textContent = `Привет, ${username}!`;
 
   data.messages.forEach(addMessage);
-
-  if (data.missedCalls.length) {
-    data.missedCalls.forEach(c =>
-      alert(`📞 Пропущенный звонок от ${c.from}`)
-    );
-  }
 
   socket.emit("get-all-users");
 });
 
 socket.on("all-users", list => {
   allUsers = list.filter(u => u !== username);
-  userSelect.innerHTML = "<option value=''>-- выбрать --</option>";
+  userSelect.innerHTML = '<option value="">-- выберите пользователя --</option>';
   allUsers.forEach(u => {
     const o = document.createElement("option");
     o.value = u;
@@ -120,10 +221,10 @@ socket.on("all-users", list => {
 });
 
 send.onclick = () => {
-  const text = document.getElementById("text").value.trim();
+  const text = input.value.trim();
   if (!text) return;
 
-  const targets = selectAll.checked
+  const targets = selectAllUsers.checked
     ? allUsers
     : [userSelect.value];
 
@@ -131,22 +232,19 @@ send.onclick = () => {
 
   targets.forEach(to => {
     socket.emit("chat-private", { from: username, to, text });
-    addMessage({ from: username, to, text, time: "сейчас" });
   });
 
-  document.getElementById("text").value = "";
+  input.value = "";
 };
 
 socket.on("private-message", addMessage);
 
 function addMessage(msg) {
   if (msg.from !== username && msg.to !== username) return;
-
   const li = document.createElement("li");
-  if (msg.from === username) li.className = "my";
-  li.textContent = `${msg.from}: ${msg.text} (${msg.time})`;
-  msgBox.appendChild(li);
-  msgBox.scrollTop = msgBox.scrollHeight;
+  if (msg.from === username) li.classList.add("my-message");
+  li.innerHTML = `<b>${msg.from}</b>: ${msg.text}`;
+  messages.appendChild(li);
 }
 </script>
 </body>
