@@ -217,25 +217,26 @@
       data.messages.forEach(addMessage);
 
       // заполнить список онлайн-пользователей
-      populateUsers(data.online || []);
-    });
-
-    // Список активных пользователей от сервера
-    socket.on('active-users', (list) => {
-      // список всех онлайн — обновляем селект
-      populateUsers(list.filter(u => u !== username));
+     populateUsers(data.users || []);
     });
 
     function populateUsers(list) {
-      // сохраняем выбранное
-      const prev = userSelect.value;
-      userSelect.innerHTML = '<option value="">-- выберите пользователя --</option>';
-      list.forEach(u => {
-        const opt = document.createElement('option');
-        opt.value = u;
-        opt.textContent = u;
-        userSelect.appendChild(opt);
-      });
+  const prev = userSelect.value;
+  userSelect.innerHTML = '<option value="">-- выберите пользователя --</option>';
+
+  list.forEach(u => {
+    if (u.username === username) return;
+
+    const opt = document.createElement('option');
+    opt.value = u.username;
+    opt.textContent = `${u.username} ${u.online ? "🟢" : "🔴"}`;
+    opt.dataset.online = u.online;
+
+    userSelect.appendChild(opt);
+  });
+
+  if (prev) userSelect.value = prev;
+}
       // попытка восстановить выбор
       if (prev && Array.from(userSelect.options).some(o => o.value === prev)) userSelect.value = prev;
     }
@@ -494,10 +495,9 @@
           return ({ '&': '&amp;', '<': '&lt;', '"': '&quot;', "'": '&#039;' })[m];
         });
     }
-
-    // При заходе на страницу запросим актуальный список онлайн
-    socket.emit("get-active");
+    
 
   </script>
 </body>
 </html>
+
