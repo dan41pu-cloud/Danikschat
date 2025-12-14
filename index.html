@@ -237,9 +237,8 @@
 
   if (prev) userSelect.value = prev;
 }
-      // попытка восстановить выбор
-      if (prev && Array.from(userSelect.options).some(o => o.value === prev)) userSelect.value = prev;
-    }
+    
+
 
     send.onclick = () => {
       const text = input.value.trim();
@@ -247,7 +246,7 @@
       if (!to) return alert("Выберите получателя в списке.");
       if (text) {
         const msg = { from: username, to, text };
-        socket.emit('chat message', msg);
+        socket.emit('chat-private', msg);
         input.value = '';
       }
     };
@@ -500,4 +499,5 @@
   </script>
 </body>
 </html>
+
 
