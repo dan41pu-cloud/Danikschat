@@ -1,4 +1,4 @@
-сделай пожалуйста так чтобы можно было выбирать всех пользователей даже если они оффлайн что бы им написать или позвонить 
+
 const http = require("http");
 const { Server } = require("socket.io");
 const fs = require("fs");
@@ -171,3 +171,4 @@ io.on("connection", socket => {
 server.listen(3000, () => {
   console.log("Server running http://localhost:3000");
 });
+
