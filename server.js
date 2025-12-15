@@ -1,4 +1,4 @@
-
+сделай пожалуйста так чтобы можно было выбирать всех пользователей даже если они оффлайн что бы им написать или позвонить 
 const http = require("http");
 const { Server } = require("socket.io");
 const fs = require("fs");
