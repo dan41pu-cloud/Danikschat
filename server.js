@@ -1,9 +1,9 @@
+
 const http = require("http");
 const { Server } = require("socket.io");
 const fs = require("fs");
 const path = require("path");
 const https = require("https");
-const express = require("express");
 
 const app = express();
 const server = http.createServer(app);
@@ -38,7 +38,7 @@ const XIRSYS_TOKEN = "787333b8-cedf-11f0-bad6-0242ac130003";
 const XIRSYS_PATH = "/_turn/MyFirstApp";
 
 function getXirsys() {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const body = JSON.stringify({ format: "ice" });
 
     const req = https.request({
@@ -53,7 +53,7 @@ function getXirsys() {
       }
     }, res => {
       let data = "";
-      res.on("data", c => data += c);
+      res.on("data", chunk => data += chunk);
       res.on("end", () => {
         try {
           const json = JSON.parse(data);
@@ -64,10 +64,7 @@ function getXirsys() {
       });
     });
 
-    req.on("error", () =>
-      resolve([{ urls: "stun:stun.l.google.com:19302" }])
-    );
-
+    req.on("error", () => resolve([{ urls: "stun:stun.l.google.com:19302" }]));
     req.write(body);
     req.end();
   });
@@ -76,7 +73,8 @@ function getXirsys() {
 /* ============= SOCKET.IO =============== */
 
 io.on("connection", socket => {
-
+  
+  // ICE
   socket.on("request-ice", async () => {
     const ice = await getXirsys();
     socket.emit("ice-servers", ice);
@@ -112,75 +110,64 @@ io.on("connection", socket => {
 
     socket.username = username;
     socket.admin = user.admin;
+
     sockets[username] = socket;
 
     socket.emit("loginSuccess", {
       username,
       admin: user.admin,
-      users: users.map(u => ({
-        username: u.username,
-        online: !!sockets[u.username]
-      })),
+      users: users.map(u => u.username),
       messages
     });
-
-    io.emit("users-update", users.map(u => ({
-      username: u.username,
-      online: !!sockets[u.username]
-    })));
   });
 
-  /* === Приватный чат (СОХРАНЯЕТСЯ) === */
+  /* === Приватный чат === */
   socket.on("chat-private", msg => {
-    const fullMsg = {
-      ...msg,
-      type: "text",
-      time: new Date().toLocaleTimeString()
-    };
-
-    messages.push(fullMsg);
-    save(messagesFile, messages);
-
-    if (sockets[msg.to]) sockets[msg.to].emit("chat-private", fullMsg);
-    socket.emit("chat-private", fullMsg);
+    const { to } = msg;
+    if (sockets[to]) sockets[to].emit("chat-private", msg);
   });
 
-  /* === Видеозвонки (без изменений) === */
-
-  socket.on("webrtc-offer", ({ to, offer }) => {
-    if (sockets[to]) sockets[to].emit("webrtc-offer", {
-      from: socket.username,
-      offer
-    });
+  /* === Личный видеозвонок === */
+  socket.on("call-user", ({ target }) => {
+    if (sockets[target]) {
+      sockets[target].emit("incoming-call", {
+        from: socket.username
+      });
+    }
   });
 
-  socket.on("webrtc-answer", ({ to, answer }) => {
-    if (sockets[to]) sockets[to].emit("webrtc-answer", {
-      from: socket.username,
-      answer
-    });
+  socket.on("webrtc-offer", ({ target, offer }) => {
+    if (sockets[target]) {
+      sockets[target].emit("webrtc-offer", {
+        from: socket.username,
+        offer
+      });
+    }
   });
 
-  socket.on("webrtc-candidate", ({ to, candidate }) => {
-    if (sockets[to]) sockets[to].emit("webrtc-candidate", {
-      from: socket.username,
-      candidate
-    });
+  socket.on("webrtc-answer", ({ target, answer }) => {
+    if (sockets[target]) {
+      sockets[target].emit("webrtc-answer", {
+        from: socket.username,
+        answer
+      });
+    }
+  });
+
+  socket.on("webrtc-candidate", ({ target, candidate }) => {
+    if (sockets[target]) {
+      sockets[target].emit("webrtc-candidate", {
+        from: socket.username,
+        candidate
+      });
+    }
   });
 
   socket.on("disconnect", () => {
-    if (socket.username) {
-      delete sockets[socket.username];
-
-      io.emit("users-update", users.map(u => ({
-        username: u.username,
-        online: !!sockets[u.username]
-      })));
-    }
+    if (socket.username) delete sockets[socket.username];
   });
 });
 
 server.listen(3000, () => {
   console.log("Server running http://localhost:3000");
 });
-
