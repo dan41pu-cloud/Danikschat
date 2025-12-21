@@ -114,11 +114,12 @@ io.on("connection", socket => {
     sockets[username] = socket;
 
     socket.emit("loginSuccess", {
-      username,
-      admin: user.admin,
-      users: users.map(u => u.username),
-      messages
-    });
+     username,
+  admin: user.admin,
+  users: users.map(u => u.username),          // ВСЕ пользователи
+  online: Object.keys(sockets),                // ТОЛЬКО онлайн
+  messages
+});
   });
 
   /* === Приватный чат === */
@@ -171,3 +172,4 @@ io.on("connection", socket => {
 server.listen(3000, () => {
   console.log("Server running http://localhost:3000");
 });
+
