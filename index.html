@@ -173,9 +173,35 @@
   <!-- Подключаем socket.io клиентскую библиотеку с сервера -->
   <script src="/socket.io/socket.io.js"></script>
   <script>
+    let allUsers = [];    // все зарегистрированные
+    let onlineUsers = []; // кто сейчас онлайн
+
     const socket = io();
 
     let inCall = false;
+    function renderUsers() {
+  const prev = userSelect.value;
+
+  userSelect.innerHTML =
+    '<option value="">-- выберите пользователя --</option>';
+
+  allUsers.forEach(user => {
+    const option = document.createElement("option");
+    option.value = user;
+
+    const online = onlineUsers.includes(user);
+    option.textContent = online
+      ? `${user} 🟢 онлайн`
+      : `${user} ⚫ оффлайн`;
+
+    userSelect.appendChild(option);
+  });
+
+  // сохраняем выбор
+  if (prev && [...userSelect.options].some(o => o.value === prev)) {
+    userSelect.value = prev;
+  }
+}
 
     const authDiv = document.getElementById('auth');
     const chatDiv = document.getElementById('chat');
@@ -206,40 +232,29 @@
     socket.on('loginError', msg => authMsg.textContent = msg);
 
     socket.on('loginSuccess', (data) => {
-      username = data.username;
-      admin = data.admin;
+  username = data.username;
+  admin = data.admin;
 
-      authDiv.classList.remove('active');
-      chatDiv.classList.add('active');
-      welcome.textContent = `Привет, ${username}!`;
+  authDiv.classList.remove('active');
+  chatDiv.classList.add('active');
+  welcome.textContent = `Привет, ${username}!`;
 
-      // Показать прошлые личные сообщения
-      data.messages.forEach(addMessage);
+  // ВСЕ зарегистрированные пользователи (кроме тебя)
+  allUsers = data.users.filter(u => u !== username);
 
-      // заполнить список онлайн-пользователей
-      populateUsers(data.online || []);
-    });
+  // Пользователи, которые сейчас онлайн
+  onlineUsers = data.online;
 
-    // Список активных пользователей от сервера
-    socket.on('active-users', (list) => {
-      // список всех онлайн — обновляем селект
-      populateUsers(list.filter(u => u !== username));
-    });
+  // Рисуем список собеседников
+  renderUsers();
 
-    function populateUsers(list) {
-      // сохраняем выбранное
-      const prev = userSelect.value;
-      userSelect.innerHTML = '<option value="">-- выберите пользователя --</option>';
-      list.forEach(u => {
-        const opt = document.createElement('option');
-        opt.value = u;
-        opt.textContent = u;
-        userSelect.appendChild(opt);
-      });
-      // попытка восстановить выбор
-      if (prev && Array.from(userSelect.options).some(o => o.value === prev)) userSelect.value = prev;
-    }
-
+  // Загружаем историю сообщений
+  data.messages.forEach(addMessage);
+});
+  socket.on("active-users", (list) => {
+  onlineUsers = list;
+  renderUsers();
+});
     send.onclick = () => {
       const text = input.value.trim();
       const to = userSelect.value;
@@ -501,6 +516,7 @@
   </script>
 </body>
 </html>
+
 
 
 
