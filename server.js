@@ -99,8 +99,7 @@ io.on("connection", socket => {
   socket.on("login", ({ username, password }) => {
     const user = users.find(
       u => u.username === username && u.password === password
-    );
-    /* LOGIN FROM LOCALSTORAGE */
+   /* LOGIN FROM LOCALSTORAGE */
 socket.on("loginFromStorage", ({ username }) => {
   const user = users.find(u => u.username === username);
   if (!user) {
@@ -125,7 +124,8 @@ socket.on("loginFromStorage", ({ username }) => {
     online: Object.keys(sockets),
     messages
   });
-});
+}); 
+  
 
     if (!user)
       return socket.emit("loginError", "Неверное имя или пароль");
@@ -203,4 +203,5 @@ socket.on("loginFromStorage", ({ username }) => {
 server.listen(3000, () => {
   console.log("✅ Server running http://localhost:3000");
 });
+
 
