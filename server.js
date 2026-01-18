@@ -118,29 +118,6 @@ io.on("connection", socket => {
     });
   });
 
-  /* LOGIN FROM LOCALSTORAGE */
-  socket.on("loginFromStorage", ({ username }) => {
-    const user = users.find(u => u.username === username);
-    if (!user) {
-      socket.emit("loginError", "Сессия устарела, войдите снова");
-      return;
-    }
-
-    socket.username = user.username;
-    socket.admin = user.admin;
-    sockets[user.username] = socket;
-
-    io.emit("active-users", Object.keys(sockets));
-
-    socket.emit("loginFromStorageSuccess", {
-      username: user.username,
-      admin: user.admin,
-      users: users.map(u => u.username),
-      online: Object.keys(sockets),
-      messages
-    });
-  });
-
   /* TEXT MESSAGE */
   socket.on("chat message", msg => {
     const fullMsg = {
@@ -199,3 +176,4 @@ io.on("connection", socket => {
 server.listen(3000, () => {
   console.log("✅ Server running http://localhost:3000");
 });
+
