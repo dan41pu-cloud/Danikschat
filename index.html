@@ -177,6 +177,79 @@
     let onlineUsers = []; // кто сейчас онлайн
 
     const socket = io();
+  let username = null;
+  let admin = false;
+
+  const authDiv = document.getElementById('auth');
+  const chatDiv = document.getElementById('chat');
+  const welcome = document.getElementById('welcome');
+
+  // === ПРОВЕРКА LOCALSTORAGE ===
+  window.addEventListener('load', () => {
+    const savedUsername = localStorage.getItem('username');
+    if (savedUsername) {
+      // отправляем серверу запрос на автоматический вход
+      socket.emit('loginFromStorage', { username: savedUsername });
+    }
+  });
+
+  // === СУЩЕСТВУЮЩИЙ LOGIN ===
+  document.getElementById('login').onclick = () => {
+    const uname = usernameInput.value.trim();
+    const pwd = passwordInput.value.trim();
+    socket.emit('login', { username: uname, password: pwd });
+  };
+
+  // === LOGIN SUCCESS ===
+  socket.on('loginSuccess', (data) => {
+    username = data.username;
+    admin = data.admin;
+
+    // сохраняем в localStorage
+    localStorage.setItem('username', username);
+    localStorage.setItem('admin', admin);
+
+    authDiv.classList.remove('active');
+    chatDiv.classList.add('active');
+    welcome.textContent = `Привет, ${username}!`;
+
+    allUsers = data.users.filter(u => u !== username);
+    onlineUsers = data.online;
+    renderUsers();
+    data.messages.forEach(addMessage);
+  });
+
+  // === ЛОГИН ИЗ LOCALSTORAGE ===
+  socket.on('loginFromStorageSuccess', (data) => {
+    // как будто обычный логинSuccess
+    username = data.username;
+    admin = data.admin;
+
+    authDiv.classList.remove('active');
+    chatDiv.classList.add('active');
+    welcome.textContent = `Привет, ${username}!`;
+
+    allUsers = data.users.filter(u => u !== username);
+    onlineUsers = data.online;
+    renderUsers();
+    data.messages.forEach(addMessage);
+  });
+
+  socket.on('loginError', msg => {
+    authMsg.textContent = msg;
+    localStorage.removeItem('username');
+    localStorage.removeItem('admin');
+  });
+
+  // === КНОПКА ВЫЙТИ (опционально) ===
+  function logout() {
+    localStorage.removeItem('username');
+    localStorage.removeItem('admin');
+    username = null;
+    admin = false;
+    authDiv.classList.add('active');
+    chatDiv.classList.remove('active');
+  }
 
     let inCall = false;
     function renderUsers() {
@@ -516,6 +589,7 @@
   </script>
 </body>
 </html>
+
 
 
 
