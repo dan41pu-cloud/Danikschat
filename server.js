@@ -100,6 +100,33 @@ io.on("connection", socket => {
     const user = users.find(
       u => u.username === username && u.password === password
     );
+    /* LOGIN FROM LOCALSTORAGE */
+socket.on("loginFromStorage", ({ username }) => {
+  const user = users.find(u => u.username === username);
+  if (!user) {
+    // если пользователь не найден
+    socket.emit("loginError", "Сессия устарела, войдите снова");
+    return;
+  }
+
+  // сохраняем сокет
+  socket.username = user.username;
+  socket.admin = user.admin;
+  sockets[user.username] = socket;
+
+  // уведомляем всех, кто онлайн
+  io.emit("active-users", Object.keys(sockets));
+
+  // отправляем фронту данные, как при обычном логине
+  socket.emit("loginFromStorageSuccess", {
+    username: user.username,
+    admin: user.admin,
+    users: users.map(u => u.username),
+    online: Object.keys(sockets),
+    messages
+  });
+});
+
     if (!user)
       return socket.emit("loginError", "Неверное имя или пароль");
 
@@ -176,3 +203,4 @@ io.on("connection", socket => {
 server.listen(3000, () => {
   console.log("✅ Server running http://localhost:3000");
 });
+
