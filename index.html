@@ -268,7 +268,7 @@
       }
     };
 
-    function addMessage(msg) {
+function addMessage(msg) {
       // msg: { from, to, text|data, time, type }
       // показываем только сообщения, где вы участник (сервер уже фильтрует при логине, но и приходящие — тоже)
       if (!(msg.from === username || msg.to === username)) return;
@@ -289,7 +289,25 @@
       messages.scrollTop = messages.scrollHeight;
     }
 
-    socket.on('private-message', addMessage);
+    socket.on("private-message", msg => {
+  // показать сообщение в чате
+  addMessage(msg);
+
+  // если сообщение пришло МНЕ
+  if (msg.to === username) {
+    if (window.Android && window.Android.onNewMessage) {
+      const text =
+        msg.type === "text"
+          ? msg.text
+          : "📷 Изображение";
+
+      window.Android.onNewMessage(
+        `Сообщение от ${msg.from}: ${text}`
+      );
+    }
+  }
+});
+
     socket.on('chat-cleared', () => messages.innerHTML = '');
 
     emojiButtons.forEach(btn => {
@@ -299,6 +317,7 @@
         socket.emit("chat message", { from: username, to, text: btn.textContent });
       };
     });
+
 
     imageInput.onchange = () => {
       const file = imageInput.files[0];
@@ -518,5 +537,6 @@
   </script>
 </body>
 </html>
+
 
 
