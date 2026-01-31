@@ -1,0 +1,181 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  background: linear-gradient(135deg, #1e1f22, #2b2d31);
+  color: #e6e6e6;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 20px;
+}
+
+/* ===== CARD BASE ===== */
+#auth,
+#chat,
+#videoChat {
+  width: 100%;
+  max-width: 520px;
+  background: #313338;
+  border-radius: 14px;
+  padding: 18px;
+  box-shadow: 0 20px 40px rgba(0,0,0,.45);
+  display: none;
+  flex-direction: column;
+  gap: 12px;
+}
+
+#auth.active,
+#chat.active {
+  display: flex;
+}
+
+/* ===== HEADERS ===== */
+h2, h3 {
+  margin: 0 0 6px;
+  font-weight: 600;
+}
+
+/* ===== INPUTS ===== */
+input,
+select {
+  background: #1e1f22;
+  color: #fff;
+  border-radius: 10px;
+  padding: 12px;
+  border: 1px solid #3f4147;
+  outline: none;
+}
+
+input::placeholder {
+  color: #9b9da3;
+}
+
+/* ===== BUTTONS ===== */
+button,
+.vc-btn {
+  background: #5865f2;
+  border: none;
+  color: #fff;
+  padding: 12px;
+  border-radius: 10px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background .15s, transform .05s;
+}
+
+button:hover,
+.vc-btn:hover {
+  background: #4752c4;
+}
+
+button:active {
+  transform: scale(.98);
+}
+
+.vc-btn.secondary {
+  background: #4a4f55;
+}
+
+.vc-btn.danger {
+  background: #f04747;
+}
+
+/* ===== CHAT ===== */
+#messages {
+  list-style: none;
+  padding: 10px;
+  margin: 0;
+  flex: 1;
+  overflow-y: auto;
+  background: #2b2d31;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+#messages li {
+  max-width: 75%;
+  background: #3a3d44;
+  padding: 10px 12px;
+  border-radius: 14px;
+  animation: fadeIn .15s ease;
+}
+
+#messages li.my-message {
+  background: #5865f2;
+  align-self: flex-end;
+}
+
+.message-username {
+  font-size: 12px;
+  font-weight: 600;
+  opacity: .85;
+}
+
+.message-time {
+  font-size: 10px;
+  opacity: .5;
+  text-align: right;
+}
+
+/* ===== EMOJI ===== */
+#emojiPicker {
+  display: flex;
+  gap: 6px;
+  padding: 6px;
+  background: #1e1f22;
+  border-radius: 12px;
+}
+
+#emojiPicker button {
+  background: none;
+  font-size: 20px;
+  padding: 6px;
+}
+
+/* ===== VIDEO CHAT ===== */
+#videoChat {
+  display: none;
+}
+
+#videoChat video {
+  width: 100%;
+  height: 220px;
+  background: #000;
+  border-radius: 12px;
+  object-fit: cover;
+}
+
+#videoChat .controls {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+/* ===== SCROLL ===== */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #4a4f55;
+  border-radius: 4px;
+}
+
+/* ===== ANIMATION ===== */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
