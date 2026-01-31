@@ -1,10 +1,23 @@
+
+
+const pushSubs = {}; // username -> subscription
+
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
 const fs = require("fs");
 const path = require("path");
 const https = require("https");
+const webpush = require("web-push");
 
+const VAPID_PUBLIC = "BJYi3h03X9-EdNQVsXPsKvku8G001TcpAxPgNFbvync7VlLRZnj8TgVkm-gdcpx23AmPZm7IPD0vAaSemX_MANY";
+const VAPID_PRIVATE = "7-PD4AN0tVcXps9jAFeXsWz0H98UcVFIj3BesgBK2ok";
+
+webpush.setVapidDetails(
+  "mailto:test@test.com",
+  VAPID_PUBLIC,
+  VAPID_PRIVATE
+);
 const app = express();
 const server = http.createServer(app);
 
@@ -117,7 +130,10 @@ io.on("connection", socket => {
       messages
     });
   });
-
+socket.on("save-push", ({ username, subscription }) => {
+    pushSubs[username] = subscription;
+    console.log("Push subscription saved for:", username);
+  });
   /* TEXT MESSAGE */
   socket.on("chat message", msg => {
     const fullMsg = {
@@ -136,6 +152,17 @@ io.on("connection", socket => {
 
     if (sockets[fullMsg.from])
       sockets[fullMsg.from].emit("private-message", fullMsg);
+    if (!sockets[fullMsg.to] && pushSubs[fullMsg.to]) {
+  webpush.sendNotification(
+    pushSubs[fullMsg.to],
+    JSON.stringify({
+      title: "Новое сообщение",
+      body: `От ${fullMsg.from}: ${fullMsg.text || "📷 Фото"}`,
+      url: "/"
+    })
+  ).catch(err => console.log("Push error", err.message));
+}
+
   });
 
   /* IMAGE MESSAGE */
@@ -176,3 +203,4 @@ io.on("connection", socket => {
 server.listen(3000, () => {
   console.log("✅ Server running http://localhost:3000");
 }); 
+
