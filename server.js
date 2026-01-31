@@ -1,7 +1,3 @@
-
-
-const pushSubs = {}; // username -> subscription
-
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -18,30 +14,29 @@ webpush.setVapidDetails(
   VAPID_PUBLIC,
   VAPID_PRIVATE
 );
+
 const app = express();
 const server = http.createServer(app);
-
-const io = new Server(server, {
-  cors: { origin: "*", methods: ["GET", "POST"] }
-});
+const io = new Server(server, { cors: { origin: "*", methods: ["GET", "POST"] } });
 
 app.use(express.static(path.join(__dirname, "public")));
 
 const usersFile = path.join(__dirname, "users.json");
 const messagesFile = path.join(__dirname, "messages.json");
+const pushFile = path.join(__dirname, "pushSubs.json");
 
-/* ===== helpers ===== */
 function load(file, def = []) {
   if (!fs.existsSync(file)) fs.writeFileSync(file, JSON.stringify(def));
   return JSON.parse(fs.readFileSync(file, "utf8"));
 }
+
 function save(file, data) {
   fs.writeFileSync(file, JSON.stringify(data, null, 2));
 }
 
-/* ===== data ===== */
 let users = load(usersFile);
 let messages = load(messagesFile);
+let pushSubs = fs.existsSync(pushFile) ? JSON.parse(fs.readFileSync(pushFile)) : {};
 
 const sockets = {}; // username -> socket
 
@@ -59,8 +54,7 @@ function getXirsys() {
       path: XIRSYS_PATH,
       method: "PUT",
       headers: {
-        "Authorization":
-          "Basic " + Buffer.from(`${XIRSYS_USER}:${XIRSYS_TOKEN}`).toString("base64"),
+        "Authorization": "Basic " + Buffer.from(`${XIRSYS_USER}:${XIRSYS_TOKEN}`).toString("base64"),
         "Content-Type": "application/json",
         "Content-Length": body.length
       }
@@ -68,17 +62,12 @@ function getXirsys() {
       let data = "";
       res.on("data", c => data += c);
       res.on("end", () => {
-        try {
-          resolve(JSON.parse(data).v.iceServers);
-        } catch {
-          resolve([{ urls: "stun:stun.l.google.com:19302" }]);
-        }
+        try { resolve(JSON.parse(data).v.iceServers); }
+        catch { resolve([{ urls: "stun:stun.l.google.com:19302" }]); }
       });
     });
 
-    req.on("error", () =>
-      resolve([{ urls: "stun:stun.l.google.com:19302" }])
-    );
+    req.on("error", () => resolve([{ urls: "stun:stun.l.google.com:19302" }]));
 
     req.write(body);
     req.end();
@@ -93,13 +82,15 @@ io.on("connection", socket => {
     socket.emit("ice-servers", await getXirsys());
   });
 
+  /* GET ACTIVE USERS */
+  socket.on("get-active", () => {
+    socket.emit("active-users", Object.keys(sockets));
+  });
+
   /* REGISTRATION */
   socket.on("register", ({ username, password }) => {
-    if (!username || !password)
-      return socket.emit("registerError", "Введите имя и пароль");
-
-    if (users.find(u => u.username === username))
-      return socket.emit("registerError", "Имя занято");
+    if (!username || !password) return socket.emit("registerError", "Введите имя и пароль");
+    if (users.find(u => u.username === username)) return socket.emit("registerError", "Имя занято");
 
     const admin = users.length === 0;
     users.push({ username, password, admin });
@@ -110,11 +101,8 @@ io.on("connection", socket => {
 
   /* LOGIN */
   socket.on("login", ({ username, password }) => {
-    const user = users.find(
-      u => u.username === username && u.password === password
-    );
-    if (!user)
-      return socket.emit("loginError", "Неверное имя или пароль");
+    const user = users.find(u => u.username === username && u.password === password);
+    if (!user) return socket.emit("loginError", "Неверное имя или пароль");
 
     socket.username = username;
     socket.admin = user.admin;
@@ -130,59 +118,41 @@ io.on("connection", socket => {
       messages
     });
   });
-socket.on("save-push", ({ username, subscription }) => {
+
+  /* SAVE PUSH SUBSCRIPTION */
+  socket.on("save-push", ({ username, subscription }) => {
     pushSubs[username] = subscription;
+    save(pushFile, pushSubs);
     console.log("Push subscription saved for:", username);
   });
+
   /* TEXT MESSAGE */
   socket.on("chat message", msg => {
-    const fullMsg = {
-      from: msg.from,
-      to: msg.to,
-      text: msg.text,
-      type: "text",
-      time: new Date().toLocaleTimeString()
-    };
-
+    if (!msg.to) return;
+    const fullMsg = { from: msg.from, to: msg.to, text: msg.text, type: "text", time: new Date().toLocaleTimeString() };
     messages.push(fullMsg);
     save(messagesFile, messages);
 
-    if (sockets[fullMsg.to])
-      sockets[fullMsg.to].emit("private-message", fullMsg);
+    if (sockets[fullMsg.to]) sockets[fullMsg.to].emit("private-message", fullMsg);
+    if (sockets[fullMsg.from]) sockets[fullMsg.from].emit("private-message", fullMsg);
 
-    if (sockets[fullMsg.from])
-      sockets[fullMsg.from].emit("private-message", fullMsg);
     if (!sockets[fullMsg.to] && pushSubs[fullMsg.to]) {
-  webpush.sendNotification(
-    pushSubs[fullMsg.to],
-    JSON.stringify({
-      title: "Новое сообщение",
-      body: `От ${fullMsg.from}: ${fullMsg.text || "📷 Фото"}`,
-      url: "/"
-    })
-  ).catch(err => console.log("Push error", err.message));
-}
-
+      webpush.sendNotification(pushSubs[fullMsg.to], JSON.stringify({
+        title: "Новое сообщение",
+        body: `От ${fullMsg.from}: ${fullMsg.text || "📷 Фото"}`,
+        url: "/"
+      })).catch(err => console.log("Push error", err.message));
+    }
   });
 
   /* IMAGE MESSAGE */
   socket.on("chat image", msg => {
-    const fullMsg = {
-      from: msg.from,
-      to: msg.to,
-      data: msg.data,
-      type: "image",
-      time: new Date().toLocaleTimeString()
-    };
-
+    const fullMsg = { from: msg.from, to: msg.to, data: msg.data, type: "image", time: new Date().toLocaleTimeString() };
     messages.push(fullMsg);
     save(messagesFile, messages);
 
-    if (sockets[fullMsg.to])
-      sockets[fullMsg.to].emit("private-message", fullMsg);
-
-    if (sockets[fullMsg.from])
-      sockets[fullMsg.from].emit("private-message", fullMsg);
+    if (sockets[fullMsg.to]) sockets[fullMsg.to].emit("private-message", fullMsg);
+    if (sockets[fullMsg.from]) sockets[fullMsg.from].emit("private-message", fullMsg);
   });
 
   /* WEBRTC */
@@ -200,7 +170,4 @@ socket.on("save-push", ({ username, subscription }) => {
   });
 });
 
-server.listen(3000, () => {
-  console.log("✅ Server running http://localhost:3000");
-}); 
-
+server.listen(3000, () => console.log("✅ Server running http://localhost:3000"));
