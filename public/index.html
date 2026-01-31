@@ -399,24 +399,26 @@
     });
 
     /* === HELPERS === */
-    function escapeHtml(unsafe) {
-      return unsafe
-        .replace(/[&<"']/g, function(m) {
-          return ({ '&': '&amp;', '<': '&lt;', '"': '&quot;', "'": '&#039;' })[m];
-          if ("serviceWorker" in navigator) {
+    if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js")
-      .then(() => console.log("✅ SW registered"))
-      .catch(err => console.error("SW error", err));
-        });
-    }
-
+    navigator.serviceWorker
+      .register("/sw.js")
+      .then(() => console.log("✅ Service Worker registered"))
+      .catch(err => console.error("❌ SW error", err));
+  });
+}
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js");
+  });
+}
     // При заходе на страницу запросим актуальный список онлайн
     socket.emit("get-active");
 
   </script>
 </body>
 </html>
+
 
 
 
