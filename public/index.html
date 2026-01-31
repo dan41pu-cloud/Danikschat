@@ -147,6 +147,24 @@
   // Загружаем историю сообщений
   data.messages.forEach(addMessage);
 });
+    async function subscribePush() {
+  const reg = await navigator.serviceWorker.ready;
+
+  const sub = await reg.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: "ТВОЙ_PUBLIC_VAPID_KEY"
+  });
+
+  socket.emit("save-push", {
+    username,
+    subscription: sub
+  });
+}
+
+socket.on("loginSuccess", async (data) => {
+  // твой код...
+  await subscribePush();
+});
   socket.on("active-users", (list) => {
   onlineUsers = list;
   renderUsers();
@@ -418,6 +436,7 @@ if ("serviceWorker" in navigator) {
   </script>
 </body>
 </html>
+
 
 
 
