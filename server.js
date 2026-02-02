@@ -111,7 +111,7 @@ socket.on("set-visibility", v => {
     socket.username = username;
     socket.admin = user.admin;
     sockets[username] = socket;
-
+    visibility[username] = true;
     io.emit("active-users", Object.keys(sockets));
 
     socket.emit("loginSuccess", {
@@ -189,16 +189,18 @@ if (
   socket.on("webrtc-candidate", p => sockets[p.to]?.emit("webrtc-candidate", p));
   socket.on("audio-join", p => sockets[p.to]?.emit("audio-join", p));
 
-  /* DISCONNECT */
+ /* DISCONNECT */
  if (socket.username) {
     delete sockets[socket.username];
     delete visibility[socket.username];
     io.emit("active-users", Object.keys(sockets));
   }
 });
-});
+
+
 
 server.listen(3000, () => console.log("✅ Server running http://localhost:3000"));
+
 
 
 
