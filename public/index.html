@@ -73,7 +73,12 @@
     let onlineUsers = []; // кто сейчас онлайн
 
     const socket = io();
+  let pageVisible = true;
 
+document.addEventListener("visibilitychange", () => {
+  pageVisible = !document.hidden;
+  socket.emit("set-visibility", pageVisible);
+});
     let inCall = false;
     function renderUsers() {
   const prev = userSelect.value;
@@ -432,6 +437,7 @@ socket.on('loginSuccess', async (data) => {
   </script>
 </body>
 </html>
+
 
 
 
