@@ -190,7 +190,8 @@ if (
   socket.on("audio-join", p => sockets[p.to]?.emit("audio-join", p));
 
  /* DISCONNECT */
- if (socket.username) {
+socket.on("disconnect", () => {
+  if (socket.username) {
     delete sockets[socket.username];
     delete visibility[socket.username];
     io.emit("active-users", Object.keys(sockets));
@@ -200,6 +201,7 @@ if (
 
 
 server.listen(3000, () => console.log("✅ Server running http://localhost:3000"));
+
 
 
 
