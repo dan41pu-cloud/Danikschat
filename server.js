@@ -104,24 +104,25 @@ socket.on("set-visibility", v => {
   });
 
   /* LOGIN */
-  socket.on("login", ({ username, password }) => {
-    const user = users.find(u => u.username === username && u.password === password);
-    if (!user) return socket.emit("loginError", "Неверное имя или пароль");
+ socket.on("login", ({ username, password }) => {
+  const user = users.find(u => u.username === username && u.password === password);
+  if (!user) return socket.emit("loginError", "Неверное имя или пароль");
 
-    socket.username = username;
-    socket.admin = user.admin;
-    sockets[username] = socket;
-    visibility[username] = true;
-    io.emit("active-users", Object.keys(sockets));
+  socket.username = username;
+  socket.admin = user.admin;
+  sockets[username] = socket;
+  visibility[username] = true;
 
-    socket.emit("loginSuccess", {
-      username,
-      admin: user.admin,
-      users: users.map(u => u.username),
-      online: Object.keys(sockets),
-      messages
-    });
+  io.emit("active-users", Object.keys(sockets));
+
+  socket.emit("loginSuccess", {
+    username,
+    admin: user.admin,
+    users: users.map(u => u.username),
+    online: Object.keys(sockets),
+    messages
   });
+});
 
   /* SAVE PUSH SUBSCRIPTION */
   socket.on("save-push", ({ username, subscription }) => {
@@ -190,6 +191,7 @@ if (
   socket.on("audio-join", p => sockets[p.to]?.emit("audio-join", p));
 
  /* DISCONNECT */
+
 socket.on("disconnect", () => {
   if (socket.username) {
     delete sockets[socket.username];
@@ -199,8 +201,8 @@ socket.on("disconnect", () => {
 });
 
 
-
 server.listen(3000, () => console.log("✅ Server running http://localhost:3000"));
+
 
 
 
