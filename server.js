@@ -103,8 +103,8 @@ socket.on("set-visibility", v => {
     socket.emit("registerSuccess", "Регистрация успешна");
   });
 
-  /* LOGIN */
- socket.on("login", ({ username, password }) => {
+/* LOGIN */
+socket.on("login", ({ username, password }) => {
   const user = users.find(u => u.username === username && u.password === password);
   if (!user) return socket.emit("loginError", "Неверное имя или пароль");
 
@@ -123,6 +123,8 @@ socket.on("set-visibility", v => {
     messages
   });
 });
+
+
 
   /* SAVE PUSH SUBSCRIPTION */
   socket.on("save-push", ({ username, subscription }) => {
@@ -202,6 +204,7 @@ socket.on("disconnect", () => {
 
 
 server.listen(3000, () => console.log("✅ Server running http://localhost:3000"));
+
 
 
 
