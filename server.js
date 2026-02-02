@@ -79,7 +79,8 @@ io.on("connection", socket => {
 socket.on("set-visibility", v => {
   if (socket.username) {
     visibility[socket.username] = v;
-  }
+   }
+  });
   /* ICE */
   socket.on("request-ice", async () => {
     socket.emit("ice-servers", await getXirsys());
@@ -198,5 +199,6 @@ if (
 });
 
 server.listen(3000, () => console.log("✅ Server running http://localhost:3000"));
+
 
 
