@@ -73,6 +73,7 @@
     let onlineUsers = []; // кто сейчас онлайн
 
     const socket = io();
+    socket.emit("set-visibility", true);
   let pageVisible = true;
 
 document.addEventListener("visibilitychange", () => {
@@ -437,6 +438,7 @@ socket.on('loginSuccess', async (data) => {
   </script>
 </body>
 </html>
+
 
 
 
