@@ -147,14 +147,31 @@ io.on("connection", socket => {
 
   /* IMAGE MESSAGE */
   socket.on("chat image", msg => {
-    const fullMsg = { from: msg.from, to: msg.to, data: msg.data, type: "image", time: new Date().toLocaleTimeString() };
-    messages.push(fullMsg);
-    save(messagesFile, messages);
+  const fullMsg = {
+    from: msg.from,
+    to: msg.to,
+    data: msg.data,
+    type: "image",
+    time: new Date().toLocaleTimeString()
+  };
 
-    if (sockets[fullMsg.to]) sockets[fullMsg.to].emit("private-message", fullMsg);
-    if (sockets[fullMsg.from]) sockets[fullMsg.from].emit("private-message", fullMsg);
-  });
+  messages.push(fullMsg);
+  save(messagesFile, messages);
 
+  sockets[fullMsg.to]?.emit("private-message", fullMsg);
+  sockets[fullMsg.from]?.emit("private-message", fullMsg);
+
+  if (!sockets[fullMsg.to] && pushSubs[fullMsg.to]) {
+    webpush.sendNotification(
+      pushSubs[fullMsg.to],
+      JSON.stringify({
+        title: "Новое фото 📷",
+        body: `От ${fullMsg.from}`,
+        url: "/"
+      })
+    ).catch(() => {});
+  }
+});
   /* WEBRTC */
   socket.on("webrtc-offer", p => sockets[p.to]?.emit("webrtc-offer", p));
   socket.on("webrtc-answer", p => sockets[p.to]?.emit("webrtc-answer", p));
@@ -171,3 +188,4 @@ io.on("connection", socket => {
 });
 
 server.listen(3000, () => console.log("✅ Server running http://localhost:3000"));
+
