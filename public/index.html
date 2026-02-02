@@ -134,6 +134,7 @@ document.addEventListener("visibilitychange", () => {
     socket.on('loginError', msg => authMsg.textContent = msg);
 
 socket.on('loginSuccess', async (data) => {
+  socket.emit("set-visibility", !document.hidden);
   username = data.username;
   admin = data.admin;
 
@@ -438,6 +439,7 @@ socket.on('loginSuccess', async (data) => {
   </script>
 </body>
 </html>
+
 
 
 
