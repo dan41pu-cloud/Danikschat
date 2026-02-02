@@ -40,6 +40,7 @@ let pushSubs = fs.existsSync(pushFile) ? JSON.parse(fs.readFileSync(pushFile)) :
 
 const sockets = {}; // username -> socket
 const visibility = {}; 
+
 /* ===== XIRSYS ICE ===== */
 const XIRSYS_USER = "daniil";
 const XIRSYS_TOKEN = "787333b8-cedf-11f0-bad6-0242ac130003";
@@ -48,7 +49,6 @@ const XIRSYS_PATH = "/_turn/MyFirstApp";
 function getXirsys() {
   return new Promise(resolve => {
     const body = JSON.stringify({ format: "ice" });
-
     const req = https.request({
       host: "global.xirsys.net",
       path: XIRSYS_PATH,
@@ -66,9 +66,7 @@ function getXirsys() {
         catch { resolve([{ urls: "stun:stun.l.google.com:19302" }]); }
       });
     });
-
     req.on("error", () => resolve([{ urls: "stun:stun.l.google.com:19302" }]));
-
     req.write(body);
     req.end();
   });
@@ -76,22 +74,23 @@ function getXirsys() {
 
 /* ===== SOCKET.IO ===== */
 io.on("connection", socket => {
-socket.on("set-visibility", v => {
-  if (socket.username) {
-    visibility[socket.username] = v;
-   }
+
+  /* ВИДИМОСТЬ ПОЛЬЗОВАТЕЛЯ */
+  socket.on("set-visibility", v => {
+    if (socket.username) visibility[socket.username] = v;
   });
+
   /* ICE */
   socket.on("request-ice", async () => {
     socket.emit("ice-servers", await getXirsys());
   });
 
-  /* GET ACTIVE USERS */
+  /* СПИСОК АКТИВНЫХ ПОЛЬЗОВАТЕЛЕЙ */
   socket.on("get-active", () => {
     socket.emit("active-users", Object.keys(sockets));
   });
 
-  /* REGISTRATION */
+  /* РЕГИСТРАЦИЯ */
   socket.on("register", ({ username, password }) => {
     if (!username || !password) return socket.emit("registerError", "Введите имя и пароль");
     if (users.find(u => u.username === username)) return socket.emit("registerError", "Имя занято");
@@ -103,111 +102,85 @@ socket.on("set-visibility", v => {
     socket.emit("registerSuccess", "Регистрация успешна");
   });
 
-/* LOGIN */
-socket.on("login", ({ username, password }) => {
-  const user = users.find(u => u.username === username && u.password === password);
-  if (!user) return socket.emit("loginError", "Неверное имя или пароль");
+  /* LOGIN */
+  socket.on("login", ({ username, password }) => {
+    const user = users.find(u => u.username === username && u.password === password);
+    if (!user) return socket.emit("loginError", "Неверное имя или пароль");
 
-  socket.username = username;
-  socket.admin = user.admin;
-  sockets[username] = socket;
-  visibility[username] = true;
+    socket.username = username;
+    socket.admin = user.admin;
+    sockets[username] = socket;
+    visibility[username] = true;
 
-  io.emit("active-users", Object.keys(sockets));
+    io.emit("active-users", Object.keys(sockets));
 
-  socket.emit("loginSuccess", {
-    username,
-    admin: user.admin,
-    users: users.map(u => u.username),
-    online: Object.keys(sockets),
-    messages
+    socket.emit("loginSuccess", {
+      username,
+      admin: user.admin,
+      users: users.map(u => u.username),
+      online: Object.keys(sockets),
+      messages
+    });
   });
-});
 
-
-
-  /* SAVE PUSH SUBSCRIPTION */
+  /* PUSH */
   socket.on("save-push", ({ username, subscription }) => {
     pushSubs[username] = subscription;
     save(pushFile, pushSubs);
-    console.log("Push subscription saved for:", username);
   });
 
-  /* TEXT MESSAGE */
+  /* ЧАТ */
   socket.on("chat message", msg => {
     if (!msg.to) return;
     const fullMsg = { from: msg.from, to: msg.to, text: msg.text, type: "text", time: new Date().toLocaleTimeString() };
     messages.push(fullMsg);
     save(messagesFile, messages);
 
-    if (sockets[fullMsg.to]) sockets[fullMsg.to].emit("private-message", fullMsg);
-    if (sockets[fullMsg.from]) sockets[fullMsg.from].emit("private-message", fullMsg);
+    sockets[fullMsg.to]?.emit("private-message", fullMsg);
+    sockets[fullMsg.from]?.emit("private-message", fullMsg);
 
-    if (
-  (!sockets[fullMsg.to] || visibility[fullMsg.to] === false) &&
-  pushSubs[fullMsg.to]
-) {
+    if ((!sockets[fullMsg.to] || visibility[fullMsg.to] === false) && pushSubs[fullMsg.to]) {
       webpush.sendNotification(pushSubs[fullMsg.to], JSON.stringify({
         title: "Новое сообщение",
         body: `От ${fullMsg.from}: ${fullMsg.text || "📷 Фото"}`,
         url: "/"
-      })).catch(err => console.log("Push error", err.message));
+      })).catch(() => {});
     }
   });
 
-  /* IMAGE MESSAGE */
+  /* КАРТИНКИ */
   socket.on("chat image", msg => {
-  const fullMsg = {
-    from: msg.from,
-    to: msg.to,
-    data: msg.data,
-    type: "image",
-    time: new Date().toLocaleTimeString()
-  };
+    const fullMsg = { from: msg.from, to: msg.to, data: msg.data, type: "image", time: new Date().toLocaleTimeString() };
+    messages.push(fullMsg);
+    save(messagesFile, messages);
 
-  messages.push(fullMsg);
-  save(messagesFile, messages);
+    sockets[fullMsg.to]?.emit("private-message", fullMsg);
+    sockets[fullMsg.from]?.emit("private-message", fullMsg);
 
-  sockets[fullMsg.to]?.emit("private-message", fullMsg);
-  sockets[fullMsg.from]?.emit("private-message", fullMsg);
+    if ((!sockets[fullMsg.to] || visibility[fullMsg.to] === false) && pushSubs[fullMsg.to]) {
+      webpush.sendNotification(pushSubs[fullMsg.to], JSON.stringify({
+        title: "Новое фото 📷",
+        body: `От ${fullMsg.from}`,
+        url: "/"
+      })).catch(() => {});
+    }
+  });
 
-if (
-  (!sockets[fullMsg.to] || visibility[fullMsg.to] === false) &&
-  pushSubs[fullMsg.to]
-) {
-  webpush.sendNotification(
-    pushSubs[fullMsg.to],
-    JSON.stringify({
-      title: "Новое фото 📷",
-      body: `От ${fullMsg.from}`,
-      url: "/"
-    })
-  ).catch(() => {});
-}
-
-});
   /* WEBRTC */
   socket.on("webrtc-offer", p => sockets[p.to]?.emit("webrtc-offer", p));
   socket.on("webrtc-answer", p => sockets[p.to]?.emit("webrtc-answer", p));
   socket.on("webrtc-candidate", p => sockets[p.to]?.emit("webrtc-candidate", p));
   socket.on("audio-join", p => sockets[p.to]?.emit("audio-join", p));
 
- /* DISCONNECT */
+  /* ОТКЛЮЧЕНИЕ */
+  socket.on("disconnect", () => {
+    if (socket.username) {
+      delete sockets[socket.username];
+      delete visibility[socket.username];
+      io.emit("active-users", Object.keys(sockets));
+    }
+  });
 
-socket.on("disconnect", () => {
-  if (socket.username) {
-    delete sockets[socket.username];
-    delete visibility[socket.username];
-    io.emit("active-users", Object.keys(sockets));
-  }
 });
 
-
 server.listen(3000, () => console.log("✅ Server running http://localhost:3000"));
-
-
-
-
-
-
-
