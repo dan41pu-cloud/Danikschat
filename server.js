@@ -39,7 +39,7 @@ let messages = load(messagesFile);
 let pushSubs = fs.existsSync(pushFile) ? JSON.parse(fs.readFileSync(pushFile)) : {};
 
 const sockets = {}; // username -> socket
-
+const visibility = {}; 
 /* ===== XIRSYS ICE ===== */
 const XIRSYS_USER = "daniil";
 const XIRSYS_TOKEN = "787333b8-cedf-11f0-bad6-0242ac130003";
@@ -76,7 +76,10 @@ function getXirsys() {
 
 /* ===== SOCKET.IO ===== */
 io.on("connection", socket => {
-
+socket.on("set-visibility", v => {
+  if (socket.username) {
+    visibility[socket.username] = v;
+  }
   /* ICE */
   socket.on("request-ice", async () => {
     socket.emit("ice-servers", await getXirsys());
@@ -136,7 +139,10 @@ io.on("connection", socket => {
     if (sockets[fullMsg.to]) sockets[fullMsg.to].emit("private-message", fullMsg);
     if (sockets[fullMsg.from]) sockets[fullMsg.from].emit("private-message", fullMsg);
 
-    if (!sockets[fullMsg.to] && pushSubs[fullMsg.to]) {
+    if (
+  (!sockets[fullMsg.to] || visibility[fullMsg.to] === false) &&
+  pushSubs[fullMsg.to]
+) {
       webpush.sendNotification(pushSubs[fullMsg.to], JSON.stringify({
         title: "Новое сообщение",
         body: `От ${fullMsg.from}: ${fullMsg.text || "📷 Фото"}`,
@@ -161,16 +167,20 @@ io.on("connection", socket => {
   sockets[fullMsg.to]?.emit("private-message", fullMsg);
   sockets[fullMsg.from]?.emit("private-message", fullMsg);
 
-  if (!sockets[fullMsg.to] && pushSubs[fullMsg.to]) {
-    webpush.sendNotification(
-      pushSubs[fullMsg.to],
-      JSON.stringify({
-        title: "Новое фото 📷",
-        body: `От ${fullMsg.from}`,
-        url: "/"
-      })
-    ).catch(() => {});
-  }
+if (
+  (!sockets[fullMsg.to] || visibility[fullMsg.to] === false) &&
+  pushSubs[fullMsg.to]
+) {
+  webpush.sendNotification(
+    pushSubs[fullMsg.to],
+    JSON.stringify({
+      title: "Новое фото 📷",
+      body: `От ${fullMsg.from}`,
+      url: "/"
+    })
+  ).catch(() => {});
+}
+
 });
   /* WEBRTC */
   socket.on("webrtc-offer", p => sockets[p.to]?.emit("webrtc-offer", p));
@@ -179,13 +189,14 @@ io.on("connection", socket => {
   socket.on("audio-join", p => sockets[p.to]?.emit("audio-join", p));
 
   /* DISCONNECT */
-  socket.on("disconnect", () => {
-    if (socket.username) {
-      delete sockets[socket.username];
-      io.emit("active-users", Object.keys(sockets));
-    }
-  });
+ if (socket.username) {
+    delete sockets[socket.username];
+    delete visibility[socket.username];
+    io.emit("active-users", Object.keys(sockets));
+  }
+});
 });
 
 server.listen(3000, () => console.log("✅ Server running http://localhost:3000"));
+
 
