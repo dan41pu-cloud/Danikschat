@@ -140,11 +140,12 @@ io.on("connection", socket => {
     sockets[fullMsg.from]?.emit("private-message", fullMsg);
 
     if ((!sockets[fullMsg.to] || visibility[fullMsg.to] === false) && pushSubs[fullMsg.to]) {
-      webpush.sendNotification(pushSubs[fullMsg.to], JSON.stringify({
-        title: "Новое сообщение",
-        body: `От ${fullMsg.from}: ${fullMsg.text || "📷 Фото"}`,
-        url: "/"
-      })).catch(() => {});
+ webpush.sendNotification(pushSubs[fullMsg.to], JSON.stringify({
+  title: "Новое сообщение",
+  body: `От ${fullMsg.from}: ${fullMsg.text || "📷 Фото"}`,
+  url: "/"
+}))
+.catch(err => console.error("❌ PUSH ERROR:", err));
     }
   });
 
@@ -158,11 +159,15 @@ io.on("connection", socket => {
     sockets[fullMsg.from]?.emit("private-message", fullMsg);
 
     if ((!sockets[fullMsg.to] || visibility[fullMsg.to] === false) && pushSubs[fullMsg.to]) {
-      webpush.sendNotification(pushSubs[fullMsg.to], JSON.stringify({
-        title: "Новое фото 📷",
-        body: `От ${fullMsg.from}`,
-        url: "/"
-      })).catch(() => {});
+      if ((!sockets[fullMsg.to] || visibility[fullMsg.to] === false) && pushSubs[fullMsg.to]) {
+  webpush.sendNotification(pushSubs[fullMsg.to], JSON.stringify({
+    title: "Новое фото 📷",
+    body: `От ${fullMsg.from}`,
+    url: "/"
+  }))
+  .catch(err => console.error("❌ PUSH ERROR (image):", err));
+}
+
     }
   });
 
@@ -185,4 +190,5 @@ io.on("connection", socket => {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log("✅ Server running on", PORT));
+
 
