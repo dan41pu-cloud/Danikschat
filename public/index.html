@@ -149,6 +149,7 @@ socket.on('loginSuccess', async (data) => {
   data.messages.forEach(addMessage);
 
   await subscribePush();
+  
 });
 
     async function subscribePush() {
@@ -439,6 +440,7 @@ socket.on('loginSuccess', async (data) => {
   </script>
 </body>
 </html>
+
 
 
 
