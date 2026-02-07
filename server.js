@@ -13,7 +13,14 @@ webpush.setVapidDetails(
   "mailto:test@test.com",
   VAPID_PUBLIC,
   VAPID_PRIVATE
+  console.log(
+  "SEND WITH VAPID:",
+  VAPID_PUBLIC,
+  "TO:",
+  pushSubs[fullMsg.to]?.endpoint
 );
+
+
 
 const app = express();
 const server = http.createServer(app);
@@ -152,6 +159,16 @@ io.on("connection", socket => {
     (!sockets[fullMsg.to] || visibility[fullMsg.to] === false) &&
     pushSubs[fullMsg.to]
   ) {
+    if (
+  (!sockets[fullMsg.to] || visibility[fullMsg.to] === false) &&
+  pushSubs[fullMsg.to]
+) {
+  console.log("📤 PUSH SEND TO:", {
+    to: fullMsg.to,
+    endpoint: pushSubs[fullMsg.to].endpoint,
+    vapid: VAPID_PUBLIC
+  });
+
     webpush.sendNotification(
       pushSubs[fullMsg.to],
       JSON.stringify({
@@ -218,6 +235,7 @@ io.on("connection", socket => {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log("✅ Server running on", PORT));
+
 
 
 
