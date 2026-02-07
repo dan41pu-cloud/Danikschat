@@ -131,45 +131,73 @@ io.on("connection", socket => {
 
   /* ЧАТ */
   socket.on("chat message", msg => {
-    if (!msg.to) return;
-    const fullMsg = { from: msg.from, to: msg.to, text: msg.text, type: "text", time: new Date().toLocaleTimeString() };
-    messages.push(fullMsg);
-    save(messagesFile, messages);
+  if (!msg.to) return;
 
-    sockets[fullMsg.to]?.emit("private-message", fullMsg);
-    sockets[fullMsg.from]?.emit("private-message", fullMsg);
+  const fullMsg = {
+    from: msg.from,
+    to: msg.to,
+    text: msg.text,
+    type: "text",
+    time: new Date().toLocaleTimeString()
+  };
 
-    if ((!sockets[fullMsg.to] || visibility[fullMsg.to] === false) && pushSubs[fullMsg.to]) {
- webpush.sendNotification(pushSubs[fullMsg.to], JSON.stringify({
-  title: "Новое сообщение",
-  body: `От ${fullMsg.from}: ${fullMsg.text || "📷 Фото"}`,
-  url: "/"
-}))
-.catch(err => console.error("❌ PUSH ERROR:", err));
-    }
-  });
+  messages.push(fullMsg);
+  save(messagesFile, messages);
+
+  sockets[fullMsg.to]?.emit("private-message", fullMsg);
+  sockets[fullMsg.from]?.emit("private-message", fullMsg);
+
+  // PUSH, если пользователь офлайн или вкладка скрыта
+  if (
+    (!sockets[fullMsg.to] || visibility[fullMsg.to] === false) &&
+    pushSubs[fullMsg.to]
+  ) {
+    webpush.sendNotification(
+      pushSubs[fullMsg.to],
+      JSON.stringify({
+        title: "Новое сообщение",
+        body: `От ${fullMsg.from}: ${fullMsg.text}`,
+        url: "/"
+      })
+    ).catch(err => console.error("❌ PUSH ERROR:", err));
+  }
+});
+
 
   /* КАРТИНКИ */
-  socket.on("chat image", msg => {
-    const fullMsg = { from: msg.from, to: msg.to, data: msg.data, type: "image", time: new Date().toLocaleTimeString() };
-    messages.push(fullMsg);
-    save(messagesFile, messages);
+ socket.on("chat image", msg => {
+  const fullMsg = {
+    from: msg.from,
+    to: msg.to,
+    data: msg.data,
+    type: "image",
+    time: new Date().toLocaleTimeString()
+  };
 
-    sockets[fullMsg.to]?.emit("private-message", fullMsg);
-    sockets[fullMsg.from]?.emit("private-message", fullMsg);
+  messages.push(fullMsg);
+  save(messagesFile, messages);
 
-    if ((!sockets[fullMsg.to] || visibility[fullMsg.to] === false) && pushSubs[fullMsg.to]) {
-      if ((!sockets[fullMsg.to] || visibility[fullMsg.to] === false) && pushSubs[fullMsg.to]) {
-  webpush.sendNotification(pushSubs[fullMsg.to], JSON.stringify({
-    title: "Новое фото 📷",
-    body: `От ${fullMsg.from}`,
-    url: "/"
-  }))
-  .catch(err => console.error("❌ PUSH ERROR (image):", err));
-}
+  sockets[fullMsg.to]?.emit("private-message", fullMsg);
+  sockets[fullMsg.from]?.emit("private-message", fullMsg);
 
-    }
-  });
+  // PUSH
+  if (
+    (!sockets[fullMsg.to] || visibility[fullMsg.to] === false) &&
+    pushSubs[fullMsg.to]
+  ) {
+    webpush.sendNotification(
+      pushSubs[fullMsg.to],
+      JSON.stringify({
+        title: "Новое фото 📷",
+        body: `От ${fullMsg.from}`,
+        url: "/"
+      })
+    ).catch(err =>
+      console.error("❌ PUSH ERROR (image):", err)
+    );
+  }
+});
+
 
   /* WEBRTC */
   socket.on("webrtc-offer", p => sockets[p.to]?.emit("webrtc-offer", p));
@@ -190,5 +218,6 @@ io.on("connection", socket => {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log("✅ Server running on", PORT));
+
 
 
