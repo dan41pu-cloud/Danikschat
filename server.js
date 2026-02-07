@@ -169,6 +169,10 @@ socket.on("chat message", msg => {
         url: "/"
       })
     ).catch(err => console.error("❌ PUSH ERROR:", err));
+ if (err.statusCode === 403 || err.statusCode === 410) {
+    console.log(`🗑 Удаляем битую подписку пользователя: ${fullMsg.to}`);
+    delete pushSubs[fullMsg.to];
+    save(pushFile, pushSubs);
   }
 });
 
@@ -228,6 +232,7 @@ socket.on("chat message", msg => {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log("✅ Server running on", PORT));
+
 
 
 
