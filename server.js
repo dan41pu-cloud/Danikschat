@@ -6,8 +6,8 @@ const path = require("path");
 const https = require("https");
 const webpush = require("web-push");
 
-const VAPID_PUBLIC = "BJYi3h03X9-EdNQVsXPsKvku8G001TcpAxPgNFbvync7VlLRZnj8TgVkm-gdcpx23AmPZm7IPD0vAaSemX_MANY";
-const VAPID_PRIVATE = "7-PD4AN0tVcXps9jAFeXsWz0H98UcVFIj3BesgBK2ok";
+const VAPID_PUBLIC = "BGZB7rFORT-w1VziAr6NeeZ2oq3n5Yzp-M55_wH9AY-bjzvnvyMX2fZlSWSniUdARIcHj7_XBI77jeCYu-df9Wc";
+const VAPID_PRIVATE = "iTmwV7vGHGo6CoJKf8f0E7pfob_us8JVy9wqPRlsT3Y";
 
 webpush.setVapidDetails(
   "mailto:test@test.com",
@@ -218,6 +218,7 @@ io.on("connection", socket => {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log("✅ Server running on", PORT));
+
 
 
 
