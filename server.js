@@ -11,7 +11,7 @@ const VAPID_PRIVATE = "lA9ccFlfMFgUfiRLXHzGghbmO0gJws64uwKz2hLJLQo";
 
 
 webpush.setVapidDetails(
-  "mailto:test@test.com",
+  "mailto:dan41ppu@gmail.com",
   VAPID_PUBLIC,
   VAPID_PRIVATE
 );
@@ -133,7 +133,7 @@ io.on("connection", socket => {
     save(pushFile, pushSubs);
   });
 
-  /* ЧАТ */
+ /* ЧАТ */
 socket.on("chat message", msg => {
   if (!msg.to) return;
 
@@ -151,16 +151,7 @@ socket.on("chat message", msg => {
   sockets[fullMsg.to]?.emit("private-message", fullMsg);
   sockets[fullMsg.from]?.emit("private-message", fullMsg);
 
-  if (
-    (!sockets[fullMsg.to] || visibility[fullMsg.to] === false) &&
-    pushSubs[fullMsg.to]
-  ) {
-    console.log("📤 PUSH SEND TO:", {
-      to: fullMsg.to,
-      endpoint: pushSubs[fullMsg.to].endpoint,
-      vapid: VAPID_PUBLIC
-    });
-
+  if ((!sockets[fullMsg.to] || visibility[fullMsg.to] === false) && pushSubs[fullMsg.to]) {
     webpush.sendNotification(
       pushSubs[fullMsg.to],
       JSON.stringify({
@@ -168,18 +159,20 @@ socket.on("chat message", msg => {
         body: `От ${fullMsg.from}: ${fullMsg.text}`,
         url: "/"
       })
-    ).catch(err => console.error("❌ PUSH ERROR:", err));
- if (err.statusCode === 403 || err.statusCode === 410) {
-    console.log(`🗑 Удаляем битую подписку пользователя: ${fullMsg.to}`);
-    delete pushSubs[fullMsg.to];
-    save(pushFile, pushSubs);
+    ).catch(err => {
+      console.error("❌ PUSH ERROR:", err.statusCode);
+      // Исправлено: if внутри блока catch
+      if (err.statusCode === 403 || err.statusCode === 410) {
+        console.log(`🗑 Удаляем битую подписку: ${fullMsg.to}`);
+        delete pushSubs[fullMsg.to];
+        save(pushFile, pushSubs);
+      }
+    });
   }
 });
 
-
-
-  /* КАРТИНКИ */
- socket.on("chat image", msg => {
+/* КАРТИНКИ */
+socket.on("chat image", msg => {
   const fullMsg = {
     from: msg.from,
     to: msg.to,
@@ -194,11 +187,7 @@ socket.on("chat message", msg => {
   sockets[fullMsg.to]?.emit("private-message", fullMsg);
   sockets[fullMsg.from]?.emit("private-message", fullMsg);
 
-  // PUSH
-  if (
-    (!sockets[fullMsg.to] || visibility[fullMsg.to] === false) &&
-    pushSubs[fullMsg.to]
-  ) {
+  if ((!sockets[fullMsg.to] || visibility[fullMsg.to] === false) && pushSubs[fullMsg.to]) {
     webpush.sendNotification(
       pushSubs[fullMsg.to],
       JSON.stringify({
@@ -206,9 +195,14 @@ socket.on("chat message", msg => {
         body: `От ${fullMsg.from}`,
         url: "/"
       })
-    ).catch(err =>
-      console.error("❌ PUSH ERROR (image):", err)
-    );
+    ).catch(err => {
+      console.error("❌ PUSH ERROR (image):", err.statusCode);
+      // Добавлено и сюда для надежности
+      if (err.statusCode === 403 || err.statusCode === 410) {
+        delete pushSubs[fullMsg.to];
+        save(pushFile, pushSubs);
+      }
+    });
   }
 });
 
@@ -232,6 +226,7 @@ socket.on("chat message", msg => {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log("✅ Server running on", PORT));
+
 
 
 
