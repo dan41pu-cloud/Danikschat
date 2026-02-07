@@ -92,7 +92,7 @@ async function subscribePush() {
     const reg = await navigator.serviceWorker.ready;
     const sub = await reg.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: "BJYi3h03X9-EdNQVsXPsKvku8G001TcpAxPgNFbvync7VlLRZnj8TgVkm-gdcpx23AmPZm7IPD0vAaSemX_MANY"
+      applicationServerKey: "BL5i0-_6YDo1MaqSkq0Jjl5FZQ_k9GS16wqObo1xx9eNWUKQAO1RheabAwaJiTTCKfPEu9qvaArf0HOlSk--5IQ"
     });
     socket.emit("save-push", { username, subscription: sub });
   } catch (e) { console.warn("Push отключён пользователем"); }
