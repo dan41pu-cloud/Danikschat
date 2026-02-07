@@ -9,17 +9,14 @@ const webpush = require("web-push");
 const VAPID_PUBLIC = "BJ89jdIyEV1EgyV5BcfFWLdgdJUMp6PuHj6LYAfhQG6fANz6GAGGOlScay3TPlnNRhQqonid0eHPKbi_uFqoVr0";
 const VAPID_PRIVATE = "lA9ccFlfMFgUfiRLXHzGghbmO0gJws64uwKz2hLJLQo";
 
+
 webpush.setVapidDetails(
   "mailto:test@test.com",
   VAPID_PUBLIC,
   VAPID_PRIVATE
-  console.log(
-  "SEND WITH VAPID:",
-  VAPID_PUBLIC,
-  "TO:",
-  pushSubs[fullMsg.to]?.endpoint
 );
 
+console.log("🚀 SERVER VAPID PUBLIC:", VAPID_PUBLIC);
 
 
 const app = express();
@@ -137,7 +134,7 @@ io.on("connection", socket => {
   });
 
   /* ЧАТ */
-  socket.on("chat message", msg => {
+socket.on("chat message", msg => {
   if (!msg.to) return;
 
   const fullMsg = {
@@ -154,20 +151,15 @@ io.on("connection", socket => {
   sockets[fullMsg.to]?.emit("private-message", fullMsg);
   sockets[fullMsg.from]?.emit("private-message", fullMsg);
 
-  // PUSH, если пользователь офлайн или вкладка скрыта
   if (
     (!sockets[fullMsg.to] || visibility[fullMsg.to] === false) &&
     pushSubs[fullMsg.to]
   ) {
-    if (
-  (!sockets[fullMsg.to] || visibility[fullMsg.to] === false) &&
-  pushSubs[fullMsg.to]
-) {
-  console.log("📤 PUSH SEND TO:", {
-    to: fullMsg.to,
-    endpoint: pushSubs[fullMsg.to].endpoint,
-    vapid: VAPID_PUBLIC
-  });
+    console.log("📤 PUSH SEND TO:", {
+      to: fullMsg.to,
+      endpoint: pushSubs[fullMsg.to].endpoint,
+      vapid: VAPID_PUBLIC
+    });
 
     webpush.sendNotification(
       pushSubs[fullMsg.to],
@@ -179,6 +171,7 @@ io.on("connection", socket => {
     ).catch(err => console.error("❌ PUSH ERROR:", err));
   }
 });
+
 
 
   /* КАРТИНКИ */
@@ -235,6 +228,7 @@ io.on("connection", socket => {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log("✅ Server running on", PORT));
+
 
 
 
